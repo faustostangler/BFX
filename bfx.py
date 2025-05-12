@@ -1,5 +1,4 @@
 from typing import List
-from beatforge.config import PLAYLISTS
 from beatforge.modules.playlist import PlaylistManager
 from beatforge.modules.downloader import Downloader
 from beatforge.modules.bpm import BPMAnalyzer
@@ -11,10 +10,18 @@ class BeatForgeRunner:
     """
     Controller principal do pipeline BeatForge.
 
-    Responsabilidades:
-      - Orquestrar o fluxo de dados entre módulos (Downloader, BPMAnalyzer, Converter).
-      - Tratar exceções de alto nível e manter baixo acoplamento.
-      - Expor interface simples para ‘run(playlist_url, max_tracks)’.
+    — Camada de Apresentação / Controller:
+      Orquestra o fluxo entre serviços, mantendo baixo acoplamento
+      (injeção de dependências via composição).
+
+    — Responsabilidades:
+      1. Obter links de playlist (PlaylistManager).
+      2. Para cada link, criar um DTO (TrackDTO) e delegar a:
+         - Downloader: baixar e extrair WAV.
+         - BPMAnalyzer: extrair e normalizar BPM, escolher target.
+         - Converter: gerar MP3 com FFmpeg.
+      3. Tratar erros de alto nível sem interromper todo o pipeline.
+      4. Retornar lista tipada de objetos de domínio (TrackDTO).
     """
 
     def __init__(
@@ -25,51 +32,65 @@ class BeatForgeRunner:
         converter: Converter
     ) -> None:
         """
-        Injeta todas as dependências via composição, promovendo testabilidade e
-        acoplamento fraco (Dependency Injection).
+        Injeção de dependências (Dependency Injection) reduz acoplamento
+        e facilita testes unitários.
+
+        — Composição em vez de herança quando possível.
+        — Cada módulo encapsula sua própria lógica (separação de responsabilidades).
         """
         self.playlist_mgr = playlist_mgr
-        self.downloader = downloader
-        self.analyzer = analyzer
-        self.converter = converter
+        self.downloader   = downloader
+        self.analyzer     = analyzer
+        self.converter    = converter
 
-    def run(self, playlist_url: str, max_tracks: int = 20) -> None:
+    def run(self, playlist_url: str, max_tracks: int = 20) -> List[TrackDTO]:
         """
-        Ponto de entrada do processamento:
-          1. Obter lista de URLs via PlaylistManager.
-          2. Para cada URL:
-             a. Criar um TrackDTO (Data Transfer Object) vazio.
-             b. Baixar WAV, extrair BPM, escolher target e converter para MP3.
+        Interface pública: processa até `max_tracks` de uma playlist.
+
+        Parâmetros:
+            playlist_url (str): URL da playlist ou mix.
+            max_tracks   (int): limite de faixas a processar.
+
+        Retorna:
+            List[TrackDTO]: lista de objetos de domínio com metadados
+                            de cada faixa processada.
         """
-        try:
-            urls = self.playlist_mgr.get_links(playlist_url, max_tracks)
-            print(f"Total de faixas a processar: {len(urls)} (limitado a {max_tracks})")
+        # 1) Obter URLs da playlist (camada de Service/Repository)
+        urls = self.playlist_mgr.get_links(playlist_url)[:max_tracks]
 
-            for idx, url in enumerate(urls, start=1):
-                print(f"\n[{idx}/{len(urls)}] Processando: {url}")
-                track = TrackDTO(url=url)
+        results: List[TrackDTO] = []
+        for url in urls:
+            track = TrackDTO(url=url)  # DTO: transporta dados entre camadas
 
-                # 1) Download do WAV
-                track.wav_path = self.downloader.download_wav(track.url)
+            try:
+                # 2) Download e extração de WAV
+                wav_path = self.downloader.download_to_wav(track.url, track.safe_title)
+                track.wav_path = wav_path
 
-                # 2) Análise de BPM
-                track.bpm = self.analyzer.extract_bpm(track.wav_path)
+                # 3) Extração & normalização de BPM
+                raw_bpm = self.analyzer.extract(wav_path)
+                track.bpm = raw_bpm
 
-                # 3) Definição de target e conversão
-                track.target_bpm = self.analyzer.choose_target(track.bpm)
-                self.converter.convert(
-                    wav_path=track.wav_path,
-                    target_bpm=track.target_bpm,
-                    safe_title=track.safe_title
-                )
+                # 4) Escolha de target e conversão para MP3
+                target_bpm = self.analyzer.choose_target(raw_bpm)
+                track.target_bpm = target_bpm
 
-        except Exception as e:
-            # Exceção genérica: registra e encerra graciosamente
-            print(f"✗ Erro fatal: {e}")
+                mp3_path = self.converter.convert(wav_path, raw_bpm, target_bpm)
+                track.output_path = mp3_path
+
+                results.append(track)
+                print(f"✓ {track.safe_title}: {raw_bpm:.2f} → {target_bpm} bpm")
+            except Exception as e:
+                # Tratamento de erro de alto nível sem interromper o loop
+                print(f"✗ Erro em {track.safe_title}: {e}")
+
+        return results
 
 
 if __name__ == "__main__":
-    # Aqui estamos separando configuração (PLAYLISTS) da lógica de inicialização.
+    # **Composition Root**: montagem das dependências concretas
+    from beatforge.config import PLAYLISTS
+
     runner = BeatForgeRunner(
         playlist_mgr=PlaylistManager(),
         downloader=Downloader(),
@@ -77,8 +98,5 @@ if __name__ == "__main__":
         converter=Converter()
     )
 
-    # Exemplo de uso: iterar sobre várias playlists
-    for url in PLAYLISTS:
-        runner.run(url, max_tracks=20)
-
-    print("✓ Pipeline concluído!")
+    for pl_url in PLAYLISTS:
+        runner.run(pl_url)
