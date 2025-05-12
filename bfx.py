@@ -57,7 +57,7 @@ class BeatForgeRunner:
                             de cada faixa processada.
         """
         # 1) Obter URLs da playlist (camada de Service/Repository)
-        urls, title = self.playlist_mgr.get_links(playlist_url)[:max_tracks]
+        urls = self.playlist_mgr.get_links(playlist_url)[:max_tracks]
 
         results: List[TrackDTO] = []
         for url in urls:
