@@ -1,9 +1,10 @@
+from beatforge.config import OUTPUT_DIR, PLAYLISTS
 from typing import List
-from beatforge.modules.playlist import PlaylistManager
-from beatforge.modules.downloader import Downloader
-from beatforge.modules.bpm import BPMAnalyzer
-from beatforge.modules.converter import Converter
-from beatforge.domain.track import TrackDTO
+from beatforge.playlist import PlaylistManager
+from beatforge.downloader import Downloader
+from beatforge.bpm import BPMAnalyzer
+from beatforge.converter import Converter
+from beatforge.track import TrackDTO
 
 
 class BeatForgeRunner:
@@ -56,7 +57,7 @@ class BeatForgeRunner:
                             de cada faixa processada.
         """
         # 1) Obter URLs da playlist (camada de Service/Repository)
-        urls = self.playlist_mgr.get_links(playlist_url)[:max_tracks]
+        urls, title = self.playlist_mgr.get_links(playlist_url)[:max_tracks]
 
         results: List[TrackDTO] = []
         for url in urls:
@@ -89,13 +90,11 @@ class BeatForgeRunner:
 
 if __name__ == "__main__":
     # **Composition Root**: montagem das dependências concretas
-    from beatforge.config import PLAYLISTS
-
     runner = BeatForgeRunner(
         playlist_mgr=PlaylistManager(),
-        downloader=Downloader(),
+        downloader=Downloader(OUTPUT_DIR),
         analyzer=BPMAnalyzer(),
-        converter=Converter()
+        converter=Converter(OUTPUT_DIR)
     )
 
     for pl_url in PLAYLISTS:
