@@ -1,11 +1,12 @@
-from beatforge.config import OUTPUT_DIR, PLAYLISTS
+# beatforge/bfx.py
+
 from typing import List
+from beatforge.config import OUTPUT_DIR, PLAYLISTS
 from beatforge.playlist import PlaylistManager
 from beatforge.downloader import Downloader
 from beatforge.bpm import BPMAnalyzer
 from beatforge.converter import Converter
 from beatforge.track import TrackDTO
-
 
 class BeatForgeRunner:
     """
@@ -16,13 +17,13 @@ class BeatForgeRunner:
       (injeção de dependências via composição).
 
     — Responsabilidades:
-      1. Obter links de playlist (PlaylistManager).
-      2. Para cada link, criar um DTO (TrackDTO) e delegar a:
+      1. Obter TrackDTOs de playlist com metadados YouTube.
+      2. Para cada TrackDTO, delegar a:
          - Downloader: baixar e extrair WAV.
          - BPMAnalyzer: extrair e normalizar BPM, escolher target.
          - Converter: gerar MP3 com FFmpeg.
       3. Tratar erros de alto nível sem interromper todo o pipeline.
-      4. Retornar lista tipada de objetos de domínio (TrackDTO).
+      4. Retornar lista de objetos de domínio (TrackDTO).
     """
 
     def __init__(
@@ -35,9 +36,6 @@ class BeatForgeRunner:
         """
         Injeção de dependências (Dependency Injection) reduz acoplamento
         e facilita testes unitários.
-
-        — Composição em vez de herança quando possível.
-        — Cada módulo encapsula sua própria lógica (separação de responsabilidades).
         """
         self.playlist_mgr = playlist_mgr
         self.downloader   = downloader
@@ -53,16 +51,14 @@ class BeatForgeRunner:
             max_tracks   (int): limite de faixas a processar.
 
         Retorna:
-            List[TrackDTO]: lista de objetos de domínio com metadados
-                            de cada faixa processada.
+            List[TrackDTO]: lista de objetos de domínio com todos os metadados
+                            e paths gerados de cada faixa.
         """
-        # 1) Obter URLs da playlist (camada de Service/Repository)
-        urls = self.playlist_mgr.get_links(playlist_url)[:max_tracks]
+        # 1) Obter TrackDTOs da playlist (já com metadados YouTube)
+        tracks = self.playlist_mgr.get_links(playlist_url)[:max_tracks]
 
         results: List[TrackDTO] = []
-        for url in urls:
-            track = TrackDTO(url=url)  # DTO: transporta dados entre camadas
-
+        for track in tracks:
             try:
                 # 2) Download e extração de WAV
                 wav_path = self.downloader.download_to_wav(track.url, track.safe_title)
@@ -77,16 +73,17 @@ class BeatForgeRunner:
                 track.target_bpm = target_bpm
 
                 mp3_path = self.converter.convert(wav_path, raw_bpm, target_bpm)
-                track.output_path = mp3_path
+                track.mp3_path = mp3_path
 
                 results.append(track)
-                print(f"✓ {track.safe_title}: {raw_bpm:.2f} → {target_bpm} bpm")
+                print(
+                    f"✓ {track.safe_title}: {raw_bpm:.2f} → {target_bpm} bpm | "
+                    f"views={track.view_count} | eng_rate={track.engagement_rate:.2f}"
+                )
             except Exception as e:
-                # Tratamento de erro de alto nível sem interromper o loop
                 print(f"✗ Erro em {track.safe_title}: {e}")
 
         return results
-
 
 if __name__ == "__main__":
     # **Composition Root**: montagem das dependências concretas

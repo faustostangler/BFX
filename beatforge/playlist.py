@@ -1,5 +1,7 @@
 # beatforge/playlist.py
 
+import csv
+import sqlite3
 import yt_dlp
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from collections import OrderedDict
@@ -9,7 +11,8 @@ from beatforge.track import TrackDTO
 class PlaylistManager:
     """
     Gerencia a extração de vídeos e metadados do YouTube,
-    retornando TrackDTO com estatísticas e metadados.
+    retornando TrackDTO com estatísticas e metadados,
+    além de suportar persistência em CSV e SQLite.
     """
 
     def __init__(self) -> None:
@@ -118,4 +121,114 @@ class PlaylistManager:
           2) Aplica limite de max_links (se fornecido)
         """
         all_tracks = self.fetch_entries(playlist_url)
+        self.save_tracks_csv(all_tracks, "playlist.csv")
+        all_tracks = self.load_tracks_csv("playlist.csv")
+
+        self.save_tracks_db(all_tracks, "playlist.db")
+        tracks_from_db = self.load_tracks_db("playlist.db")
+
         return all_tracks[:max_links] if max_links is not None else all_tracks
+
+    # ——— Persistência em CSV ————————————————————————————————————————
+    def save_tracks_csv(self, tracks: List[TrackDTO], csv_path: str) -> None:
+        """
+        Salva a lista de TrackDTO num arquivo CSV.
+        """
+        fieldnames = [
+            'url',
+            'view_count',
+            'like_count',
+            'comment_count',
+            'engagement_rate',
+            'title',
+            'channel',
+            'album'
+        ]
+        with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for t in tracks:
+                writer.writerow({
+                    'url': t.url,
+                    'view_count': t.view_count,
+                    'like_count': t.like_count,
+                    'comment_count': t.comment_count,
+                    'engagement_rate': t.engagement_rate,
+                    'title': t.title,
+                    'channel': t.channel,
+                    'album': t.album
+                })
+
+    def load_tracks_csv(self, csv_path: str) -> List[TrackDTO]:
+        """
+        Carrega a lista de TrackDTO a partir de um CSV.
+        """
+        tracks: List[TrackDTO] = []
+        with open(csv_path, newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                tracks.append(TrackDTO(
+                    url=row['url'],
+                    view_count=int(row['view_count']),
+                    like_count=int(row['like_count']),
+                    comment_count=int(row['comment_count']),
+                    engagement_rate=float(row['engagement_rate']),
+                    title=row['title'],
+                    channel=row['channel'],
+                    album=row['album']
+                ))
+        return tracks
+
+    # ——— Persistência em SQLite —————————————————————————————————————————
+    def save_tracks_db(self, tracks: List[TrackDTO], db_path: str) -> None:
+        """
+        Salva a lista de TrackDTO em uma tabela SQLite.
+        """
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS track_info (
+                url TEXT PRIMARY KEY,
+                view_count INTEGER,
+                like_count INTEGER,
+                comment_count INTEGER,
+                engagement_rate REAL,
+                title TEXT,
+                channel TEXT,
+                album TEXT
+            )
+        """)
+        for t in tracks:
+            cur.execute("""
+                INSERT OR REPLACE INTO track_info
+                (url, view_count, like_count, comment_count,
+                 engagement_rate, title, channel, album)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                t.url,
+                t.view_count,
+                t.like_count,
+                t.comment_count,
+                t.engagement_rate,
+                t.title,
+                t.channel,
+                t.album
+            ))
+        conn.commit()
+        conn.close()
+
+    def load_tracks_db(self, db_path: str) -> List[TrackDTO]:
+        """
+        Carrega a lista de TrackDTO de uma tabela SQLite.
+        """
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        tracks: List[TrackDTO] = []
+        for row in cur.execute("""
+            SELECT url, view_count, like_count, comment_count,
+                   engagement_rate, title, channel, album
+            FROM track_info
+        """):
+            tracks.append(TrackDTO(*row))
+        conn.close()
+        return tracks
