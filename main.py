@@ -10,8 +10,7 @@ from beatforge.converter import Converter
 from beatforge.track import TrackDTO
 import csv
 import sqlite3
-
-
+import os
 class BeatForgeRunner:
     """
     Orquestrador principal do pipeline BeatForge:
@@ -65,7 +64,6 @@ class BeatForgeRunner:
         if not os.path.exists(db_path):
             return tracks
 
-        import sqlite3
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         for row in cur.execute("""
@@ -142,7 +140,6 @@ class BeatForgeRunner:
     def run(
         self,
         playlist_urls: List[str],
-        max_tracks_per_playlist: int = 100,
         process_all_entries: bool = True
     ) -> List[TrackDTO]:
         """
@@ -158,7 +155,8 @@ class BeatForgeRunner:
 
         for idx, url in enumerate(playlist_urls, 1):
             print(f"{idx}/{len(playlist_urls)} {url}")
-            tracks = self.playlist_mgr.get_links(url, idx)[:max_tracks_per_playlist]
+
+            tracks = self.playlist_mgr.get_links(url, idx)
 
             selected_tracks = (
                 tracks if process_all_entries else self._select_curated_tracks(tracks)

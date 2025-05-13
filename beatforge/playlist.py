@@ -12,7 +12,6 @@ from typing import List, Optional
 from beatforge.track import TrackDTO
 from beatforge import config
 
-
 class PlaylistManager:
     """
     Gerencia a extração de vídeos e metadados do YouTube,
@@ -63,11 +62,15 @@ class PlaylistManager:
         safe_title = f"{title} – {artist} – {album}".strip()
         return safe_title[:128]
 
-    def fetch_entries(self, url: str, idx: int) -> List[TrackDTO]:
+    def fetch_entries(self, url: str, idx: int, max_tracks_per_playlist: int = config.MAX_TRACKS_PER_PLAYLIST) -> List[TrackDTO]:
         clean_url = self.sanitize_url(url)
 
         with yt_dlp.YoutubeDL(self._ydl_opts_flat) as ydl_flat:
             info = ydl_flat.extract_info(clean_url, download=False)
+
+        if not info:
+            print(f"✗ Nenhuma informação retornada para: {clean_url}")
+            return []
 
         entries = info.get('entries') or []
         urls = []
@@ -75,7 +78,8 @@ class PlaylistManager:
             page = info.get('webpage_url') or f"https://www.youtube.com/watch?v={info['id']}"
             urls.append(page)
         else:
-            for e in entries:
+            entries_max = entries[:max_tracks_per_playlist]
+            for e in entries_max:
                 vid = e.get('webpage_url') or e.get('url') or e.get('id')
                 if not vid.startswith('http'):
                     vid = f"https://www.youtube.com/watch?v={vid}"

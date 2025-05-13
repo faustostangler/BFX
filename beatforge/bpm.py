@@ -42,7 +42,7 @@ class BPMAnalyzer:
         while start < self.max_bpm:
             end = start + self.interval
             target = start + self.offset
-            target = int(round(target / 10.0) * 10)  # nearest-10 → 20
+            target = int(round(target / (self.interval/2)) * (self.interval/2))  # nearest-10 → 20
             ranges.append((start, end, target))
             start = end
         return ranges
