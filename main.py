@@ -8,9 +8,12 @@ from beatforge.downloader import Downloader
 from beatforge.bpm import BPMAnalyzer
 from beatforge.converter import Converter
 from beatforge.track import TrackDTO
+from beatforge.utils import print_progress
+
 import csv
 import sqlite3
 import os
+import time
 class BeatForgeRunner:
     """
     Orquestrador principal do pipeline BeatForge:
@@ -149,9 +152,13 @@ class BeatForgeRunner:
         3. Executa o pipeline de processamento: download → BPM → MP3
         """
         all_tracks_by_url: Dict[str, TrackDTO] = {}
+        existing_tracks_by_url = self.load_tracks()
 
-        for idx, url in enumerate(playlist_urls, 1):
-            print(f"{idx}/{len(playlist_urls)} {url}")
+        print('\n\nGetting Youtube Info')
+        start_time = time.time()
+        for idx, url in enumerate(playlist_urls):
+            extra_info=[f"{url}"]
+            print_progress(idx, len(playlist_urls), start_time, extra_info, indent_level=0)
 
             tracks = self.playlist_mgr.get_links(url, idx)
 
@@ -159,16 +166,16 @@ class BeatForgeRunner:
                 tracks if process_all_entries else self._select_curated_tracks(tracks)
             )
 
-            existing_tracks_by_url = self.load_tracks()
             for t in selected_tracks:
                 if t.url not in existing_tracks_by_url:
                     all_tracks_by_url[t.url] = t  # sobrescreve se duplicado, mas ignora se já existe
-            self.save_tracks(list(all_tracks_by_url.values()))
 
         unique_tracks = list(all_tracks_by_url.values())
         results: List[TrackDTO] = []
         self.save_tracks(unique_tracks)
 
+        print('\n\Downloading Youtube Songs')
+        start_time = time.time()
         for i, track in enumerate(unique_tracks):
             try:
                 wav_path = self.downloader.download_to_wav(track.url, track.safe_title)
@@ -184,9 +191,8 @@ class BeatForgeRunner:
 
                 results.append(track)
 
-                print(
-                    f"{i+1}/{len(unique_tracks)} {raw_bpm:.2f} → {target_bpm} bpm {track.view_count} {track.engagement_rate:.2f} {track.safe_title}"
-                )
+                extra_info=[f"{raw_bpm:.2f} → {target_bpm} bpm {track.view_count} {track.engagement_rate:.2f} {track.safe_title}"]
+                print_progress(i, len(unique_tracks), start_time, extra_info)
 
             except Exception as e:
                 print(f"✗ Erro em {track.safe_title}: {e}")

@@ -4,6 +4,7 @@ import csv
 import sqlite3
 import yt_dlp
 import re
+import time
 
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from collections import OrderedDict
@@ -11,6 +12,7 @@ from typing import List, Optional
 
 from beatforge.track import TrackDTO
 from beatforge import config
+from beatforge.utils import print_progress
 
 class PlaylistManager:
     """
@@ -89,7 +91,8 @@ class PlaylistManager:
 
         tracks: List[TrackDTO] = []
         with yt_dlp.YoutubeDL(self._ydl_opts_full) as ydl_full:
-            for i, vid_url in enumerate(unique_urls, start=1):
+            start_time = time.time()
+            for i, vid_url in enumerate(unique_urls):
                 meta = ydl_full.extract_info(vid_url, download=False)
                 vc = meta.get('view_count') or 0
                 lc = meta.get('like_count') or 0
@@ -115,7 +118,8 @@ class PlaylistManager:
                     safe_title=safe_title
                 ))
 
-                print(f"    {idx}.{i}/{len(unique_urls)} {vid_url} {vc} {er:.2f} {safe_title}")
+                extra_info = [f"{vid_url} {vc} {er:.2f} {safe_title}"]
+                print_progress(i, len(unique_urls), start_time, extra_info, indent_level=1)
 
         return tracks
 

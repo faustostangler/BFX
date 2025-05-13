@@ -1,7 +1,7 @@
 import os
 
 # Diretório de saída para arquivos WAV e MP3
-OUTPUT_DIR = r"D:\Fausto Stangler\Documentos\Python\BFX\Music"
+OUTPUT_DIR = r"D:\Fausto Stangler\Documentos\Python\BFX\music"
 FILENAME = "playlist"
 
 # Cria diretório se não existir
