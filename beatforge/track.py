@@ -1,8 +1,5 @@
-# beatforge/domain/track.py
-
 from dataclasses import dataclass, field
 from pathlib import Path
-import re
 from typing import Optional
 
 @dataclass
@@ -24,7 +21,7 @@ class TrackDTO:
       - comment_count: número de comentários.
       - engagement_rate: (likes + comments) / views.
       - title: título do vídeo.
-      - channel: nome do canal/uploader.
+      - artist: nome do canal/uploader.
       - album: informação de álbum (se disponível).
     """
     url: str
@@ -39,25 +36,6 @@ class TrackDTO:
     comment_count: Optional[int]   = field(default=None)
     engagement_rate: Optional[float] = field(default=None)
     title: Optional[str]           = field(default=None)
-    channel: Optional[str]         = field(default=None)
+    artist: Optional[str]         = field(default=None)
     album: Optional[str]           = field(default=None)
-
-    @property
-    def safe_title(self) -> str:
-        """
-        Retorna um nome de arquivo “seguro” para usar em downloads:
-
-        1. Se wav_path está disponível, usa seu stem (nome sem extensão).
-        2. Caso contrário, extrai o parâmetro 'v' da URL como fallback.
-        3. Substitui espaços por '_' e remove tudo que não for [A-Za-z0-9_-].
-        4. Limita a 128 caracteres.
-        """
-        if self.wav_path:
-            base = Path(self.wav_path).stem
-        else:
-            m = re.search(r"v=([^&]+)", self.url)
-            base = m.group(1) if m else "track"
-
-        # limpa caracteres inválidos
-        cleaned = re.sub(r"[^A-Za-z0-9_-]", "", base.replace(" ", "_"))
-        return cleaned[:128]
+    safe_title: Optional[str]      = field(default=None)

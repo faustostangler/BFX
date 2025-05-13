@@ -3,10 +3,15 @@
 import csv
 import sqlite3
 import yt_dlp
+import re
+
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from collections import OrderedDict
 from typing import List, Optional
+
 from beatforge.track import TrackDTO
+from beatforge import config
+
 
 class PlaylistManager:
     """
@@ -16,15 +21,11 @@ class PlaylistManager:
     """
 
     def __init__(self) -> None:
-        """
-        Inicializa o gerenciador com opções para extração "flat" (lista)
-        e para extração completa (stats e metadados).
-        """
         self._ydl_opts_flat = {
             'quiet': True,
-            'extract_flat': True,         # só extrai IDs/URLs
+            'extract_flat': True,
             'force_generic_extractor': False,
-            'yes_playlist': True,         # segue playlists/mixes
+            'yes_playlist': True,
         }
         self._ydl_opts_full = {
             'quiet': True,
@@ -32,14 +33,14 @@ class PlaylistManager:
         }
 
     def sanitize_url(self, input_url: str) -> str:
-        """
-        Converte qualquer URL com 'list' ou 'playlist' num endpoint
-        '/playlist?list=…', forçando o extractor de playlists do yt-dlp.
-        Se não houver 'list' nem 'playlist', retorna a URL original.
-        """
         parts = urlparse(input_url)
         qs = parse_qs(parts.query)
         list_id = (qs.get('list') or qs.get('playlist') or [None])[0]
+
+        # Se for uma playlist tipo RD... (mix automática), NÃO converte para /playlist
+        if list_id and list_id.startswith("RD"):
+            return input_url
+
         if list_id:
             return urlunparse((
                 parts.scheme,
@@ -49,27 +50,27 @@ class PlaylistManager:
                 urlencode({'list': list_id}),
                 ''
             ))
+
         return input_url
 
-    def fetch_entries(self, url: str) -> List[TrackDTO]:
-        """
-        1) Normaliza a URL (playlist vs. vídeo único)
-        2) Extrai “flat” para obter só IDs/URLs
-        3) Monta lista de URLs únicas
-        4) Para cada URL, faz extração completa para coletar:
-           - view_count, like_count, comment_count
-           - engagement_rate = (likes + comments) / views
-           - title, channel, album
-        5) Retorna: List[TrackDTO] já populado com esses metadados
-        """
+    def make_safe_title(self, title: str, artist: str = "", album: str = "") -> str:
+        def clean(s: str) -> str:
+            return re.sub(r"[^A-Za-z0-9 \-]", "", s).strip().replace("  ", " ")
+
+        title = clean(title)
+        artist = clean(artist)
+        album = clean(album)
+        safe_title = f"{title} – {artist} – {album}".strip()
+        return safe_title[:128]
+
+    def fetch_entries(self, url: str, idx: int) -> List[TrackDTO]:
         clean_url = self.sanitize_url(url)
 
-        # 1ª passagem: obter só os IDs/URLs
         with yt_dlp.YoutubeDL(self._ydl_opts_flat) as ydl_flat:
             info = ydl_flat.extract_info(clean_url, download=False)
 
         entries = info.get('entries') or []
-        urls: List[str] = []
+        urls = []
         if not entries:
             page = info.get('webpage_url') or f"https://www.youtube.com/watch?v={info['id']}"
             urls.append(page)
@@ -82,24 +83,21 @@ class PlaylistManager:
 
         unique_urls = list(OrderedDict.fromkeys(urls))
 
-        # 2ª passagem: extrair estatísticas e metadados completos
         tracks: List[TrackDTO] = []
         with yt_dlp.YoutubeDL(self._ydl_opts_full) as ydl_full:
-            total = len(unique_urls)
             for i, vid_url in enumerate(unique_urls, start=1):
                 meta = ydl_full.extract_info(vid_url, download=False)
-                vc = meta.get('view_count')   or 0
-                lc = meta.get('like_count')   or 0
+                vc = meta.get('view_count') or 0
+                lc = meta.get('like_count') or 0
                 cc = meta.get('comment_count') or 0
-                er = (lc + cc) / vc if vc else 0
+                er = 100_000 * (lc + cc) / vc if vc else 0
 
-                title   = meta.get('title')    or ''
-                channel = meta.get('uploader') or meta.get('channel') or ''
-                album   = meta.get('album')    or ''
-
-                # Debug opcional
-                print(f"{vid_url} {i}/{total}  views={vc}  eng_rate={er:.2f}  "
-                      f"'{title}' – {channel} – {album}")
+                title = meta.get('title') or meta.get('fulltitle') or meta.get('alt_title') or meta.get('track') or ''
+                artist = meta.get('artist') or meta.get('creator') or \
+                         (meta.get('creators') or [None])[0] or \
+                         meta.get('uploader') or meta.get('channel') or ''
+                album = meta.get('album') or ''
+                safe_title = self.make_safe_title(title, artist, album)
 
                 tracks.append(TrackDTO(
                     url=vid_url,
@@ -108,41 +106,30 @@ class PlaylistManager:
                     comment_count=cc,
                     engagement_rate=er,
                     title=title,
-                    channel=channel,
-                    album=album
+                    artist=artist,
+                    album=album,
+                    safe_title=safe_title
                 ))
+
+                print(f"    {idx}.{i}/{len(unique_urls)} {vid_url} {vc} {er:.2f} {safe_title}")
 
         return tracks
 
-    def get_links(self, playlist_url: str, max_links: Optional[int] = None) -> List[TrackDTO]:
-        """
-        Orquestra a extração de TrackDTOs:
-          1) fetch_entries → lista completa de TrackDTO
-          2) Aplica limite de max_links (se fornecido)
-        """
-        all_tracks = self.fetch_entries(playlist_url)
-        self.save_tracks_csv(all_tracks, "playlist.csv")
-        all_tracks = self.load_tracks_csv("playlist.csv")
+    def get_links(self, playlist_url: str, idx: int, max_links: Optional[int] = None) -> List[TrackDTO]:
+        all_tracks = self.fetch_entries(playlist_url, idx)
 
-        self.save_tracks_db(all_tracks, "playlist.db")
-        tracks_from_db = self.load_tracks_db("playlist.db")
+        self.save_tracks_csv(all_tracks)
+        self.save_tracks_db(all_tracks)
 
         return all_tracks[:max_links] if max_links is not None else all_tracks
 
-    # ——— Persistência em CSV ————————————————————————————————————————
-    def save_tracks_csv(self, tracks: List[TrackDTO], csv_path: str) -> None:
-        """
-        Salva a lista de TrackDTO num arquivo CSV.
-        """
+    def save_tracks_csv(self, tracks: List[TrackDTO], csv_path: Optional[str] = None) -> None:
+        if csv_path is None:
+            csv_path = f"{config.FILENAME}.csv"
+
         fieldnames = [
-            'url',
-            'view_count',
-            'like_count',
-            'comment_count',
-            'engagement_rate',
-            'title',
-            'channel',
-            'album'
+            'url', 'view_count', 'like_count', 'comment_count',
+            'engagement_rate', 'title', 'artist', 'album', 'safe_title'
         ]
         with open(csv_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -155,14 +142,15 @@ class PlaylistManager:
                     'comment_count': t.comment_count,
                     'engagement_rate': t.engagement_rate,
                     'title': t.title,
-                    'channel': t.channel,
-                    'album': t.album
+                    'artist': t.artist,
+                    'album': t.album,
+                    'safe_title': t.safe_title
                 })
 
-    def load_tracks_csv(self, csv_path: str) -> List[TrackDTO]:
-        """
-        Carrega a lista de TrackDTO a partir de um CSV.
-        """
+    def load_tracks_csv(self, csv_path: Optional[str] = None) -> List[TrackDTO]:
+        if csv_path is None:
+            csv_path = f"{config.FILENAME}.csv"
+
         tracks: List[TrackDTO] = []
         with open(csv_path, newline='', encoding='utf-8') as f:
             reader = csv.DictReader(f)
@@ -174,16 +162,16 @@ class PlaylistManager:
                     comment_count=int(row['comment_count']),
                     engagement_rate=float(row['engagement_rate']),
                     title=row['title'],
-                    channel=row['channel'],
-                    album=row['album']
+                    artist=row['artist'],
+                    album=row['album'],
+                    safe_title=row['safe_title']
                 ))
         return tracks
 
-    # ——— Persistência em SQLite —————————————————————————————————————————
-    def save_tracks_db(self, tracks: List[TrackDTO], db_path: str) -> None:
-        """
-        Salva a lista de TrackDTO em uma tabela SQLite.
-        """
+    def save_tracks_db(self, tracks: List[TrackDTO], db_path: Optional[str] = None) -> None:
+        if db_path is None:
+            db_path = f"{config.FILENAME}.db"
+
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         cur.execute("""
@@ -194,41 +182,40 @@ class PlaylistManager:
                 comment_count INTEGER,
                 engagement_rate REAL,
                 title TEXT,
-                channel TEXT,
-                album TEXT
+                artist TEXT,
+                album TEXT,
+                safe_title TEXT
             )
         """)
         for t in tracks:
             cur.execute("""
-                INSERT OR REPLACE INTO track_info
-                (url, view_count, like_count, comment_count,
-                 engagement_rate, title, channel, album)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO track_info (
+                    url, view_count, like_count, comment_count,
+                    engagement_rate, title, artist, album, safe_title
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                t.url,
-                t.view_count,
-                t.like_count,
-                t.comment_count,
-                t.engagement_rate,
-                t.title,
-                t.channel,
-                t.album
+                t.url, t.view_count, t.like_count, t.comment_count,
+                t.engagement_rate, t.title, t.artist, t.album, t.safe_title
             ))
         conn.commit()
         conn.close()
 
-    def load_tracks_db(self, db_path: str) -> List[TrackDTO]:
-        """
-        Carrega a lista de TrackDTO de uma tabela SQLite.
-        """
+    def load_tracks_db(self, db_path: Optional[str] = None) -> List[TrackDTO]:
+        if db_path is None:
+            db_path = f"{config.FILENAME}.db"
+
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         tracks: List[TrackDTO] = []
         for row in cur.execute("""
             SELECT url, view_count, like_count, comment_count,
-                   engagement_rate, title, channel, album
+                   engagement_rate, title, artist, album, safe_title
             FROM track_info
         """):
-            tracks.append(TrackDTO(*row))
+            tracks.append(TrackDTO(
+                url=row[0], view_count=row[1], like_count=row[2],
+                comment_count=row[3], engagement_rate=row[4],
+                title=row[5], artist=row[6], album=row[7], safe_title=row[8]
+            ))
         conn.close()
         return tracks

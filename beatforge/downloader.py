@@ -1,53 +1,43 @@
+# beatforge/downloader.py
+
 import os
 import time
-from typing import Optional
-import yt_dlp
 from pathlib import Path
+import yt_dlp
 
 
 class Downloader:
-    """
-    Serviço de download de áudio de vídeos do YouTube e extração para WAV.
-
-    Responsabilidades:
-      - Baixar a melhor faixa de áudio até 128 kbps.
-      - Converter para WAV via FFmpeg.
-      - Gerenciar conflitos de nomes e aguardar geração do arquivo.
-    """
+    """Serviço de download e conversão de vídeos do YouTube para WAV."""
 
     def __init__(self, output_dir: str) -> None:
-        """
-        :param output_dir: caminho onde todos os arquivos serão salvos.
-        """
+        """Inicializa o diretório de saída e cria a pasta se necessário."""
         self.output_dir = output_dir
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
-    def download_wav(self, url: str) -> str:
+    def download_to_wav(self, url: str, safe_title: str) -> str:
         """
-        Baixa o áudio de um vídeo e retorna o caminho do .wav gerado.
+        Baixa o áudio de um vídeo do YouTube e o converte para WAV.
 
-        Fluxo:
-          1. Obtém título do vídeo (sem download completo).
-          2. Gera nome seguro e limpa arquivos antigos conflitantes.
-          3. Chama yt-dlp com post-processor para WAV.
-          4. Aguarda até o .wav existir (timeout 60 s).
+        Args:
+            url (str): URL do vídeo YouTube.
+            safe_title (str): Nome de arquivo já sanitizado.
 
-        :param url: URL de um vídeo do YouTube.
-        :return: caminho absoluto do arquivo WAV.
-        :raises TimeoutError: se o arquivo não aparecer em 60 s.
+        Returns:
+            str: Caminho absoluto para o arquivo .wav gerado.
+
+        Raises:
+            TimeoutError: Se o arquivo .wav não for gerado dentro do tempo limite.
         """
-        title = self._get_title(url)
-        safe_title = self._safe_filename(title)
         wav_path = os.path.join(self.output_dir, f"{safe_title}.wav")
 
-        # Se já existe, evita novo download
+        # Se o arquivo já existe, retorna direto
         if os.path.exists(wav_path):
             return wav_path
 
-        # Remove resquícios de downloads anteriores
+        # Limpa arquivos conflitantes antigos
         self._cleanup_conflicts(safe_title)
 
-        # Configuração do yt-dlp para extrair áudio e converter
+        # Configuração do yt-dlp
         ydl_opts = {
             'format': 'bestaudio[abr<=128]',
             'outtmpl': os.path.join(self.output_dir, f"{safe_title}.%(ext)s"),
@@ -67,47 +57,22 @@ class Downloader:
             }],
         }
 
+        # Baixa e converte com yt-dlp
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
+        # Aguarda até que o arquivo esteja disponível
         if not self._wait_for_file(wav_path):
             raise TimeoutError(f"{wav_path} não apareceu em 60 segundos")
 
         return wav_path
 
-    def _get_title(self, url: str) -> str:
-        """
-        Busca apenas o título do vídeo, sem baixar o arquivo.
-        """
-        opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'restrictfilenames': True,
-        }
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-        return info.get('title', 'track')
-
-    class _QuietLogger:
-        """Logger mudo para yt-dlp."""
-        def debug(self, *args, **kwargs): pass
-        def warning(self, *args, **kwargs): pass
-        def error(self, *args, **kwargs): pass
-
-    def _safe_filename(self, name: str) -> str:
-        """
-        Converte título em nome de arquivo seguro:
-        - Espaços viram underscore
-        - Remove caracteres não alfanuméricos, exceto - e _
-        - Limita a 128 caracteres
-        """
-        tmp = name.replace(" ", "_")
-        tmp = "".join(c for c in tmp if c.isalnum() or c in ("-", "_"))
-        return tmp[:128]
-
     def _cleanup_conflicts(self, base: str) -> None:
         """
-        Remove arquivos antigos que possam conflitar com o novo download.
+        Remove arquivos com o mesmo nome base mas extensão diferente.
+
+        Args:
+            base (str): Nome base do arquivo (sem extensão).
         """
         for ext in ('webm', 'm4a', 'mp3', 'mp4'):
             path = os.path.join(self.output_dir, f"{base}.{ext}")
@@ -118,7 +83,14 @@ class Downloader:
 
     def _wait_for_file(self, path: str, timeout: int = 60) -> bool:
         """
-        Aguarda até o arquivo existir ou até expirar o timeout.
+        Aguarda até que o arquivo seja criado.
+
+        Args:
+            path (str): Caminho completo do arquivo a aguardar.
+            timeout (int): Tempo máximo (segundos).
+
+        Returns:
+            bool: True se o arquivo apareceu, False se não.
         """
         start = time.time()
         while not os.path.exists(path):
@@ -126,3 +98,9 @@ class Downloader:
                 return False
             time.sleep(0.5)
         return True
+
+    class _QuietLogger:
+        """Logger silencioso usado pelo yt-dlp para suprimir mensagens."""
+        def debug(self, *args, **kwargs): pass
+        def warning(self, *args, **kwargs): pass
+        def error(self, *args, **kwargs): pass
