@@ -148,9 +148,6 @@ class BeatForgeRunner:
         2. Remove duplicatas globais por URL
         3. Executa o pipeline de processamento: download → BPM → MP3
         """
-
-        existing_tracks_by_url = self.load_tracks()
-
         all_tracks_by_url: Dict[str, TrackDTO] = {}
 
         for idx, url in enumerate(playlist_urls, 1):
@@ -162,12 +159,15 @@ class BeatForgeRunner:
                 tracks if process_all_entries else self._select_curated_tracks(tracks)
             )
 
+            existing_tracks_by_url = self.load_tracks()
             for t in selected_tracks:
                 if t.url not in existing_tracks_by_url:
                     all_tracks_by_url[t.url] = t  # sobrescreve se duplicado, mas ignora se já existe
+            self.save_tracks(list(all_tracks_by_url.values()))
 
         unique_tracks = list(all_tracks_by_url.values())
         results: List[TrackDTO] = []
+        self.save_tracks(unique_tracks)
 
         for i, track in enumerate(unique_tracks):
             try:
@@ -186,14 +186,11 @@ class BeatForgeRunner:
 
 
                 print(
-                    f"{track.url} {i+1}/{len(unique_tracks)} {track.safe_title}: "
-                    f"{raw_bpm:.2f} → {target_bpm} bpm | views={track.view_count} | eng_rate={track.engagement_rate:.2f}"
+                    f"{i+1}/{len(unique_tracks)} {raw_bpm:.2f} → {target_bpm} bpm {track.view_count} {track.engagement_rate:.2f} {track.safe_title}"
                 )
 
             except Exception as e:
                 print(f"✗ Erro em {track.safe_title}: {e}")
-
-        self.save_tracks(results)
 
         return results
 if __name__ == "__main__":
