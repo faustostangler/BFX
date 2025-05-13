@@ -118,7 +118,7 @@ class PlaylistManager:
                     safe_title=safe_title
                 ))
 
-                extra_info = [f"{vid_url} {vc} {er:.2f} {safe_title}"]
+                extra_info = [f"{vid_url} {vc} {er:.2f} {title} {artist}"]
                 print_progress(i, len(unique_urls), start_time, extra_info, indent_level=1)
 
         return tracks
