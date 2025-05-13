@@ -184,7 +184,6 @@ class BeatForgeRunner:
 
                 results.append(track)
 
-
                 print(
                     f"{i+1}/{len(unique_tracks)} {raw_bpm:.2f} → {target_bpm} bpm {track.view_count} {track.engagement_rate:.2f} {track.safe_title}"
                 )
