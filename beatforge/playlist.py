@@ -6,6 +6,7 @@ import yt_dlp
 import re
 import time
 import math
+from datetime import datetime
 
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from collections import OrderedDict
@@ -141,9 +142,16 @@ class PlaylistManager:
                 except Exception:
                     continue
 
-                vc = meta.get('view_count') or 0
-                lc = meta.get('like_count') or 0
-                cc = meta.get('comment_count') or 0
+                ts = meta.get("timestamp") or 0
+                age_days = 0
+                if ts:
+                    age_days = (datetime.now() - datetime.fromtimestamp(ts)).days
+                    age_weight = math.log(age_days + 2) # +2 evita o log(0) e suaviza vídeos novíssimos
+
+
+                vc = (meta.get('view_count') or 0)/age_weight
+                lc = (meta.get('like_count') or 0)/age_weight
+                cc = (meta.get('comment_count') or 0)/age_weight
                 er, score_alt, score_log = self.compute_engagement_scores(vc, lc, cc)
 
                 title = meta.get('title') or meta.get('fulltitle') or meta.get('alt_title') or meta.get('track') or ''
@@ -164,7 +172,8 @@ class PlaylistManager:
                     title=title,
                     artist=artist,
                     album=album,
-                    safe_title=safe_title
+                    safe_title=safe_title, 
+                    age_weight=age_weight, 
                 ))
 
                 extra_info = [f"{vid_url} {vc} ER={er:.2f} ALT={score_alt:.2f} LOG={score_log:.2f}"]

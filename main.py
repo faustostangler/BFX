@@ -74,14 +74,15 @@ class BeatForgeRunner:
         for row in cur.execute("""
             SELECT url, view_count, like_count, comment_count,
                 engagement_rate, engagement_score_alt, engagement_score_log,
-                title, artist, album, safe_title
+                age_weight, title, artist, album, safe_title
             FROM track_info
         """):
             t = TrackDTO(
-                url=row[0], view_count=row[1], like_count=row[2],
-                comment_count=row[3], engagement_rate=row[4],
-                engagement_score_alt=row[5], engagement_score_log=row[6],
-                title=row[7], artist=row[8], album=row[9], safe_title=row[10]
+                url=row[0],
+                view_count=row[1], like_count=row[2], comment_count=row[3],
+                engagement_rate=row[4], engagement_score_alt=row[5],
+                engagement_score_log=row[6], age_weight=row[7],
+                title=row[8], artist=row[9], album=row[10], safe_title=row[11]
             )
             tracks[t.url] = t
         conn.close()
@@ -100,13 +101,13 @@ class BeatForgeRunner:
             writer.writerow([
                 'url', 'view_count', 'like_count', 'comment_count',
                 'engagement_rate', 'engagement_score_alt', 'engagement_score_log',
-                'title', 'artist', 'album', 'safe_title'
-                ])
+                'age_weight', 'title', 'artist', 'album', 'safe_title'
+            ])
             for t in tracks:
                 writer.writerow([
                     t.url, t.view_count, t.like_count, t.comment_count,
                     t.engagement_rate, t.engagement_score_alt, t.engagement_score_log,
-                    t.title, t.artist, t.album, t.safe_title
+                    t.age_weight, t.title, t.artist, t.album, t.safe_title
                 ])
 
         # SQLite
@@ -121,6 +122,7 @@ class BeatForgeRunner:
                     engagement_rate REAL,
                     engagement_score_alt REAL,
                     engagement_score_log REAL,
+                    age_weight INTEGER,
                     title TEXT,
                     artist TEXT,
                     album TEXT,
@@ -132,11 +134,12 @@ class BeatForgeRunner:
                 INSERT OR REPLACE INTO track_info (
                     url, view_count, like_count, comment_count,
                     engagement_rate, engagement_score_alt, engagement_score_log,
-                    title, artist, album, safe_title
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    age_weight, title, artist, album, safe_title
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 t.url, t.view_count, t.like_count, t.comment_count,
-                t.engagement_rate, t.title, t.artist, t.album, t.safe_title
+                t.engagement_rate, t.engagement_score_alt, t.engagement_score_log,
+                t.age_weight, t.title, t.artist, t.album, t.safe_title
             ))
         conn.commit()
         conn.close()
