@@ -20,6 +20,8 @@ class TrackDTO:
       - like_count: número de curtidas.
       - comment_count: número de comentários.
       - engagement_rate: (likes + comments) / views.
+      - engagement_score_alt: score ponderado com penalização linear.
+      - engagement_score_log: score ponderado com penalização log(view).
       - title: título do vídeo.
       - artist: nome do canal/uploader.
       - album: informação de álbum (se disponível).
@@ -31,11 +33,13 @@ class TrackDTO:
     mp3_path: Optional[str]     = field(default=None)
 
     # —— Metadados do YouTube ——
-    view_count: Optional[int]      = field(default=None)
-    like_count: Optional[int]      = field(default=None)
-    comment_count: Optional[int]   = field(default=None)
+    view_count: Optional[int]        = field(default=None)
+    like_count: Optional[int]        = field(default=None)
+    comment_count: Optional[int]     = field(default=None)
     engagement_rate: Optional[float] = field(default=None)
-    title: Optional[str]           = field(default=None)
-    artist: Optional[str]         = field(default=None)
-    album: Optional[str]           = field(default=None)
-    safe_title: Optional[str]      = field(default=None)
+    engagement_score_alt: Optional[float] = field(default=None)
+    engagement_score_log: Optional[float] = field(default=None)
+    title: Optional[str]             = field(default=None)
+    artist: Optional[str]            = field(default=None)
+    album: Optional[str]             = field(default=None)
+    safe_title: Optional[str]        = field(default=None)

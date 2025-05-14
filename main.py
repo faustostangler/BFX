@@ -14,6 +14,8 @@ import csv
 import sqlite3
 import os
 import time
+from typing import Tuple
+
 class BeatForgeRunner:
     """
     Orquestrador principal do pipeline BeatForge:
@@ -71,13 +73,15 @@ class BeatForgeRunner:
         cur = conn.cursor()
         for row in cur.execute("""
             SELECT url, view_count, like_count, comment_count,
-                engagement_rate, title, artist, album, safe_title
+                engagement_rate, engagement_score_alt, engagement_score_log,
+                title, artist, album, safe_title
             FROM track_info
         """):
             t = TrackDTO(
                 url=row[0], view_count=row[1], like_count=row[2],
                 comment_count=row[3], engagement_rate=row[4],
-                title=row[5], artist=row[6], album=row[7], safe_title=row[8]
+                engagement_score_alt=row[5], engagement_score_log=row[6],
+                title=row[7], artist=row[8], album=row[9], safe_title=row[10]
             )
             tracks[t.url] = t
         conn.close()
@@ -95,36 +99,41 @@ class BeatForgeRunner:
             writer = csv.writer(f)
             writer.writerow([
                 'url', 'view_count', 'like_count', 'comment_count',
-                'engagement_rate', 'title', 'artist', 'album', 'safe_title'
-            ])
+                'engagement_rate', 'engagement_score_alt', 'engagement_score_log',
+                'title', 'artist', 'album', 'safe_title'
+                ])
             for t in tracks:
                 writer.writerow([
                     t.url, t.view_count, t.like_count, t.comment_count,
-                    t.engagement_rate, t.title, t.artist, t.album, t.safe_title
+                    t.engagement_rate, t.engagement_score_alt, t.engagement_score_log,
+                    t.title, t.artist, t.album, t.safe_title
                 ])
 
         # SQLite
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS track_info (
-                url TEXT PRIMARY KEY,
-                view_count INTEGER,
-                like_count INTEGER,
-                comment_count INTEGER,
-                engagement_rate REAL,
-                title TEXT,
-                artist TEXT,
-                album TEXT,
-                safe_title TEXT
-            )
+                CREATE TABLE IF NOT EXISTS track_info (
+                    url TEXT PRIMARY KEY,
+                    view_count INTEGER,
+                    like_count INTEGER,
+                    comment_count INTEGER,
+                    engagement_rate REAL,
+                    engagement_score_alt REAL,
+                    engagement_score_log REAL,
+                    title TEXT,
+                    artist TEXT,
+                    album TEXT,
+                    safe_title TEXT
+                )
         """)
         for t in tracks:
             cur.execute("""
                 INSERT OR REPLACE INTO track_info (
                     url, view_count, like_count, comment_count,
-                    engagement_rate, title, artist, album, safe_title
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    engagement_rate, engagement_score_alt, engagement_score_log,
+                    title, artist, album, safe_title
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 t.url, t.view_count, t.like_count, t.comment_count,
                 t.engagement_rate, t.title, t.artist, t.album, t.safe_title
@@ -132,13 +141,26 @@ class BeatForgeRunner:
         conn.commit()
         conn.close()
 
-    def _select_curated_tracks(self, tracks: List[TrackDTO]) -> List[TrackDTO]:
+    def _select_curated_tracks(self, tracks: List[TrackDTO], limit: int) -> Tuple[List[TrackDTO], List[TrackDTO], List[TrackDTO]]:
         """
-        Retorna apenas os clássicos e novidades com base em views e engajamento.
+        Retorna três listas distintas:
+        - top_alt: por engagement_score_alt (penalização linear)
+        - top_log: por engagement_score_log (penalização logarítmica)
+        - top_viral: por view_count (popularidade bruta)
         """
-        classicos = self._group_by_views_and_engagement(tracks, 20, 10, bottom=False)
-        novidades = self._group_by_views_and_engagement(tracks, 20, 10, bottom=True)
-        return classicos + novidades
+        # Top ALT
+        filtered_alt = [t for t in tracks if t.engagement_score_alt is not None]
+        top_alt = sorted(filtered_alt, key=lambda t: t.engagement_score_alt, reverse=True)[:limit]
+
+        # Top LOG
+        filtered_log = [t for t in tracks if t.engagement_score_log is not None]
+        top_log = sorted(filtered_log, key=lambda t: t.engagement_score_log, reverse=True)[:limit]
+
+        # Top VIRAL
+        filtered_viral = [t for t in tracks if t.view_count is not None]
+        top_viral = sorted(filtered_viral, key=lambda t: t.view_count, reverse=True)[:limit]
+
+        return top_alt, top_log, top_viral
 
     def run(
         self,
@@ -162,9 +184,17 @@ class BeatForgeRunner:
 
             tracks = self.playlist_mgr.get_links(url, idx)
 
-            selected_tracks = (
-                tracks if process_all_entries else self._select_curated_tracks(tracks)
-            )
+            if process_all_entries:
+                selected_tracks = tracks
+            else:
+                top_alt, top_log, top_viral = self._select_curated_tracks(tracks, limit=25)
+
+                seen = set()
+                selected_tracks = []
+                for t in top_alt + top_log + top_viral:
+                    if t.url not in seen:
+                        seen.add(t.url)
+                        selected_tracks.append(t)
 
             for t in selected_tracks:
                 if t.url not in existing_tracks_by_url:
@@ -174,7 +204,7 @@ class BeatForgeRunner:
         results: List[TrackDTO] = []
         self.save_tracks(unique_tracks)
 
-        print('\n\Downloading Youtube Songs')
+        print('\n\nDownloading Youtube Songs')
         start_time = time.time()
         for i, track in enumerate(unique_tracks):
             try:
@@ -198,6 +228,7 @@ class BeatForgeRunner:
                 print(f"✗ Erro em {track.safe_title}: {e}")
 
         return results
+
 if __name__ == "__main__":
     runner = BeatForgeRunner(
         playlist_mgr=PlaylistManager(),
@@ -206,6 +237,6 @@ if __name__ == "__main__":
         converter=Converter(OUTPUT_DIR)
     )
 
-    runner.run(PLAYLISTS)
+    runner.run(PLAYLISTS, process_all_entries=False)
 
     print("done!")
