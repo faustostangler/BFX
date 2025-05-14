@@ -77,6 +77,8 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+*.ini
+
 # Music files
 *.wav
 *.mp3
