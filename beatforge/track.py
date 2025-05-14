@@ -33,7 +33,7 @@ class TrackDTO:
     mp3_path: Optional[str]     = field(default=None)
 
     # —— Metadados do YouTube ——
-    age_weight: Optional[int]        = field(default=None)
+    age_weight: Optional[float]        = field(default=None)
     view_count: Optional[int]        = field(default=None)
     like_count: Optional[int]        = field(default=None)
     comment_count: Optional[int]     = field(default=None)

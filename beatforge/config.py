@@ -54,4 +54,4 @@ PLAYLISTS = [
     "", 
 ]
 
-MAX_TRACKS_PER_PLAYLIST = 50  # ou o valor desejado
+MAX_TRACKS_PER_PLAYLIST = 100  # ou o valor desejado

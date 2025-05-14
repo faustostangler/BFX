@@ -190,7 +190,7 @@ class BeatForgeRunner:
             if process_all_entries:
                 selected_tracks = tracks
             else:
-                top_alt, top_log, top_viral = self._select_curated_tracks(tracks, limit=25)
+                top_alt, top_log, top_viral = self._select_curated_tracks(tracks, limit=30)
 
                 seen = set()
                 selected_tracks = []

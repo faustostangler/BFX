@@ -83,15 +83,16 @@ class PlaylistManager:
         if vc == 0:
             return 0.0, 0.0, 0.0
 
-        comment_rate = cc / vc * 10_000_000
-        view_norm = vc / 10_000_000
-        view_log_norm = math.log1p(vc) / math.log1p(10_000_000)
+        multiplier = 10_000_000
+        comment_rate = cc / vc * multiplier
+        view_norm = vc / multiplier
+        view_log_norm = math.log1p(vc) / math.log1p(multiplier)
 
-        comment_to_like = cc / lc * 100_000 if lc else 0.0
+        comment_to_like = cc / lc * (multiplier/100) if lc else 0.0
 
         score_alt = 0.7 * comment_rate + 0.3 * comment_to_like - 1.0 * view_norm
         score_log = 0.7 * comment_rate + 0.3 * comment_to_like - 1.0 * view_log_norm
-        er = 100_000 * (lc + cc) / vc
+        er = (multiplier/100) * (lc + cc) / vc
 
         return er, score_alt, score_log
 
@@ -176,7 +177,7 @@ class PlaylistManager:
                     age_weight=age_weight, 
                 ))
 
-                extra_info = [f"{vid_url} {vc} ER={er:.2f} ALT={score_alt:.2f} LOG={score_log:.2f}"]
+                extra_info = [f"{vid_url} {vc:.0f} ER={er:.2f} ALT={score_alt:.2f} LOG={score_log:.2f}"]
                 print_progress(i, len(unique_urls), start_time, extra_info, indent_level=1)
 
         return tracks
@@ -247,6 +248,9 @@ class PlaylistManager:
                 like_count INTEGER,
                 comment_count INTEGER,
                 engagement_rate REAL,
+                engagement_score_alt REAL,
+                engagement_score_log REAL,
+                age_weight REAL,
                 title TEXT,
                 artist TEXT,
                 album TEXT,
@@ -257,11 +261,13 @@ class PlaylistManager:
             cur.execute("""
                 INSERT OR REPLACE INTO track_info (
                     url, view_count, like_count, comment_count,
-                    engagement_rate, title, artist, album, safe_title
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    engagement_rate, engagement_score_alt, engagement_score_log,
+                    age_weight, title, artist, album, safe_title
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 t.url, t.view_count, t.like_count, t.comment_count,
-                t.engagement_rate, t.title, t.artist, t.album, t.safe_title
+                t.engagement_rate, t.engagement_score_alt, t.engagement_score_log,
+                t.age_weight, t.title, t.artist, t.album, t.safe_title
             ))
         conn.commit()
         conn.close()
