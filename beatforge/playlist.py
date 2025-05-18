@@ -96,7 +96,6 @@ class PlaylistManager:
 
         return er, score_alt, score_log
 
-
     def make_safe_title(self, title: str, artist: str = "", album: str = "") -> str:
         def clean(s: str) -> str:
             return re.sub(r"[^A-Za-z0-9 \-]", "", s).strip().replace("  ", " ")
@@ -177,18 +176,18 @@ class PlaylistManager:
                     age_weight=age_weight, 
                 ))
 
-                extra_info = [f"{vid_url} {vc:.0f} ER={er:.2f} ALT={score_alt:.2f} LOG={score_log:.2f}"]
+                extra_info = [f"{vid_url} ER={er:.2f} SCORE={score_log:.2f} V={vc:.0f} {title}"]
                 print_progress(i, len(unique_urls), start_time, extra_info, indent_level=1)
 
         return tracks
 
-    def get_links(self, playlist_url: str, idx: int, max_links: Optional[int] = None) -> List[TrackDTO]:
-        all_tracks = self.fetch_entries(playlist_url, idx)
+    def get_links(self, playlist_url: str, idx: int, max_tracks_per_playlist: Optional[int] = None) -> List[TrackDTO]:
+        all_tracks = self.fetch_entries(playlist_url, idx, max_tracks_per_playlist)
 
         self.save_tracks_csv(all_tracks)
         self.save_tracks_db(all_tracks)
 
-        return all_tracks[:max_links] if max_links is not None else all_tracks
+        return all_tracks[:max_tracks_per_playlist] if max_tracks_per_playlist is not None else all_tracks
 
     def save_tracks_csv(self, tracks: List[TrackDTO], csv_path: Optional[str] = None) -> None:
         if csv_path is None:

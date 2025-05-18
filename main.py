@@ -1,6 +1,6 @@
 # beatforge/bfx.py
 
-from beatforge.config import OUTPUT_DIR, PLAYLISTS
+from beatforge.file_utils import load_playlists
 from typing import List, Dict
 from beatforge import config
 from beatforge.playlist import PlaylistManager
@@ -36,6 +36,45 @@ class BeatForgeRunner:
         self.downloader   = downloader
         self.analyzer     = analyzer
         self.converter    = converter
+
+    @staticmethod
+    def _select_first_and_top(
+        tracks: List[TrackDTO],
+        top_n: int, 
+        top_n_views: int,
+        top_n_eng: int,
+        bottom: bool = False
+    ) -> List[TrackDTO]:
+        """
+        Sempre mantém a primeira faixa da playlist (preservando ordem original)
+        e seleciona as top_n seguintes com maior taxa de engajamento.
+
+        Args:
+            tracks: lista completa de TrackDTO de uma playlist.
+            top_n: número de faixas adicionais após a primeira.
+        Returns:
+            Lista contendo até top_n+1 TrackDTO.
+        """
+        if not tracks:
+            return []
+        # Mantém o primeiro elemento intacto (primeiro vídeo)
+        first = [tracks[0]]
+        # Considera apenas o restante para ranking
+        remainder = tracks[1:]
+
+        sorted_tracks = sorted(
+            remainder,
+            key=lambda t: t.view_count or 0,
+            reverse=not bottom
+        )
+
+        double_sorted_tracks = sorted(
+            sorted_tracks[:top_n_views],
+            key=lambda t: t.engagement_rate or 0.0,
+            reverse=True
+        )[:top_n_eng]
+
+        return first + double_sorted_tracks
 
     @staticmethod
     def _group_by_views_and_engagement(
@@ -168,13 +207,24 @@ class BeatForgeRunner:
     def run(
         self,
         playlist_urls: List[str],
-        process_all_entries: bool = True
+        process_all_entries: bool = True, 
+        max_tracks_per_playlist: int = config.MAX_TRACKS_PER_PLAYLIST
     ) -> List[TrackDTO]:
         """
         Executa o pipeline em múltiplas playlists:
-        1. Extrai e filtra faixas de cada playlist (todas ou curadas)
-        2. Remove duplicatas globais por URL
-        3. Executa o pipeline de processamento: download → BPM → MP3
+          1. Extrai metadados (PlaylistManager)
+          2. Seleciona faixas (primeiro + top_n ou todas)
+          3. Remove duplicatas globais
+          4. Baixa áudio (Downloader)
+          5. Extrai BPM (BPMAnalyzer)
+          6. Converte para MP3 (Converter)
+
+        Args:
+            playlist_urls: URLs de playlists a processar.
+            process_all_entries: se True, baixa todas as faixas; se False,
+                baixa sempre o primeiro vídeo + TOP_TRACKS_PER_PLAYLIST.
+        Returns:
+            Lista de TrackDTO processados com wav_path e mp3_path preenchidos.
         """
         all_tracks_by_url: Dict[str, TrackDTO] = {}
         existing_tracks_by_url = self.load_tracks()
@@ -185,16 +235,17 @@ class BeatForgeRunner:
             extra_info=[f"{url}"]
             print_progress(idx, len(playlist_urls), start_time, extra_info, indent_level=0)
 
-            tracks = self.playlist_mgr.get_links(url, idx)
+            tracks = self.playlist_mgr.get_links(url, idx, max_tracks_per_playlist)
 
             if process_all_entries:
                 selected_tracks = tracks
             else:
-                top_alt, top_log, top_viral = self._select_curated_tracks(tracks, limit=30)
+                first = [tracks[0]]
+                top_alt, top_log, top_viral = self._select_curated_tracks(tracks[1:], limit=5)
 
                 seen = set()
                 selected_tracks = []
-                for t in top_alt + top_log + top_viral:
+                for t in first + top_alt + top_log + top_viral:
                     if t.url not in seen:
                         seen.add(t.url)
                         selected_tracks.append(t)
@@ -233,13 +284,28 @@ class BeatForgeRunner:
         return results
 
 if __name__ == "__main__":
-    runner = BeatForgeRunner(
-        playlist_mgr=PlaylistManager(),
-        downloader=Downloader(OUTPUT_DIR),
-        analyzer=BPMAnalyzer(),
-        converter=Converter(OUTPUT_DIR)
-    )
+    # 1) Carrega o dict { gênero: [urls...] }
+    playlists_by_genre = load_playlists()
 
-    runner.run(PLAYLISTS, process_all_entries=False)
+    # 2) Para cada gênero, cria pasta e dispara o processamento
+    start_time = time.time()
+    items = playlists_by_genre.items()
+    for i, (genre, urls) in enumerate(items):
+        print(f"\n=== Processando gênero: {genre} ({len(urls)} playlists) ===")
 
-    print("done!")
+        genre_dir = os.path.join(config.OUTPUT_DIR, genre)
+        os.makedirs(genre_dir, exist_ok=True)
+
+        runner = BeatForgeRunner(
+            playlist_mgr=PlaylistManager(),
+            downloader=Downloader(genre_dir),
+            analyzer=BPMAnalyzer(),
+            converter=Converter(genre_dir)
+        )
+
+        results = runner.run(urls, process_all_entries=False, max_tracks_per_playlist=config.MAX_TRACKS_PER_PLAYLIST)
+
+        extra_info = [f"{genre} {len(results)} musics"]
+        print_progress(i, len(items), start_time, extra_info)
+
+print("done!")

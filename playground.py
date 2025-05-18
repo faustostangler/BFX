@@ -195,7 +195,8 @@ def run_ffmpeg(wav_file, mult, out_mp3):
 
 def get_mp3(links):
     # Processamento de cada link
-    for idx, link in enumerate(links[:20], 1):
+    # for idx, link in enumerate(links[:20], 1):
+    for idx, link in enumerate(links, 1):
         print(idx, link)
         # 1) metadata + safe_title
         with yt_dlp.YoutubeDL({'quiet':True,'no_warnings':True,'restrictfilenames':True}) as ydl_meta:
@@ -249,6 +250,22 @@ for url in playlists:
     print(url)
     links = get_playlist_links(url)
     print(f"Total de vídeos: {len(links)}→20")
-    # get_mp3(links)
+    get_mp3(links)
+
+TOP_X = 20   # defina quantas “top” quer baixar
+
+for url in playlists:
+    links = get_playlist_links(url)
+    if not links:
+        continue
+
+    primeira     = links[:1]
+    top_x_musicas = links[1:TOP_X]
+    to_download  = primeira + top_x_musicas
+
+    print(f"Baixando 1ª  top {TOP_X} de {url}: total {len(to_download)} faixas")
+    get_mp3(to_download)
+
+
 
 print('done!')
