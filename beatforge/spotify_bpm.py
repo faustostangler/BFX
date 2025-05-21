@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
+from spotipy import SpotifyException
 import csv
 import logging
 
@@ -45,9 +46,35 @@ class SpotifyService:
             return None
         return items[0]["id"]
 
-    def get_audio_features(self, track_id: str) -> Optional[dict]:
-        return self.client.audio_features([track_id])[0]
+    def get_audio_features(self, track_id: str) -> dict:
+        """
+        Obtém os audio-features de UMA faixa.
 
+        1) Tenta o batch endpoint (que aceita lista de IDs).
+        2) Se falhar, usa o single-track endpoint via _get sem barra dupla.
+        """
+        # garante que não há espaços estranhos
+        track_id = track_id.strip()
+
+        try:
+            # 1) batch endpoint: precisa ser lista de strings
+            features_list = self.client.audio_features([track_id])
+            # Spotipy devolve uma lista de dicts, mesmo que tenha só 1 item
+            if features_list and features_list[0]:
+                return features_list[0]
+            return {}
+        except SpotifyException as batch_err:
+            print(f"⚠️ Batch audio-features falhou para {track_id}: {batch_err}")
+
+        try:
+            # 2) single-track endpoint: REMOVE a barra inicial para evitar "//"
+            #    vai gerar GET https://api.spotify.com/v1/audio-features/{track_id}
+            response = self.client._get(f"audio-features/{track_id}")
+            # response já é um dict com keys como 'tempo', 'time_signature', etc.
+            return response or {}
+        except SpotifyException as single_err:
+            print(f"⚠️ Single-track audio-features falhou para {track_id}: {single_err}")
+            return {}
 
 class CSVRepository:
     """Salva lista de TrackInfo em CSV."""

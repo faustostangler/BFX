@@ -16,7 +16,7 @@ import csv
 import sqlite3
 import os
 import time
-from typing import Tuple, Optional
+from typing import Tuple
 
 class BeatForgeRunner:
     """
@@ -210,10 +210,7 @@ class BeatForgeRunner:
         self,
         playlist_urls: List[str],
         process_all_entries: bool = True, 
-        max_tracks_per_playlist: int = config.MAX_TRACKS_PER_PLAYLIST,
-        spotify_service: Optional[SpotifyService] = None,
-        spotify_repo:    Optional[CSVRepository]   = None,
-
+        max_tracks_per_playlist: int = config.MAX_TRACKS_PER_PLAYLIST
     ) -> List[TrackDTO]:
         """
         Executa o pipeline em múltiplas playlists:
@@ -231,11 +228,6 @@ class BeatForgeRunner:
         Returns:
             Lista de TrackDTO processados com wav_path e mp3_path preenchidos.
         """
-        # — Se recebeu um serviço de Spotify, prepara o controller para enriquecer o DTO —
-        sp_controller = None
-        if spotify_service:
-            sp_controller = BPMController(spotify_service, spotify_repo)
-
         all_tracks_by_url: Dict[str, TrackDTO] = {}
         existing_tracks_by_url = self.load_tracks()
 
@@ -272,16 +264,6 @@ class BeatForgeRunner:
         start_time = time.time()
         for i, track in enumerate(unique_tracks):
             try:
-                if sp_controller:
-                    # pesquisa no Spotify pelo título e artista
-                    spotify_id = spotify_service.search_track(track.title, track.artist or "")
-                    if spotify_id:
-                        features = spotify_service.get_audio_features(spotify_id)
-                        # popula campos no TrackDTO
-                        track.spotify_track_id = spotify_id
-                        track.spotify_bpm      = features.get('tempo')
-                        track.time_signature  = features.get('time_signature')
-
                 wav_path = self.downloader.download_to_wav(track.url, track.safe_title)
                 track.wav_path = wav_path
 
@@ -304,107 +286,98 @@ class BeatForgeRunner:
         return results
 
 def main():
-    """
-    Ponto de entrada do aplicativo BeatForge.
-    Permite dois modos de operação:
-      - yt: Download de playlists YouTube e conversão de áudios.
-      - spotify: Consulta de BPM/compasso via Spotify API.
-
-    Responsabilidades:
-      - Controller (main) dirige fluxo de apresentação (CLI).
-      - Delegação a serviços e componentes (PlaylistManager, Downloader, etc.).
-      - Data Transfer Object (TrackDTO) carrega metadados e caminhos.
-    """
-    # Configuração do parser de linha de comando (Separation of Concerns)
-    parser = argparse.ArgumentParser(
+    parser     = argparse.ArgumentParser(
         prog="beatforge",
         description="Processa playlists YouTube e/ou consulta Spotify"
     )
+    subparsers = parser.add_subparsers(dest="mode", required=True)
 
-    parser.set_defaults(
-        mode="yt",
-        with_spotify=True,
-        spotify_csv=""
+    # ——— Modo “yt” ———
+    yt = subparsers.add_parser(
+        "yt",
+        help="Faz download, análise e conversão das playlists definidas em playlist.txt"
     )
-
-    # 3) agora declaro os args de Spotify **no parser principal**
-    parser.add_argument(
+    yt.add_argument(
         "--with-spotify",
         action="store_true",
-        help="Enriquece cada TrackDTO com compasso/BPM do Spotify (padrão: ligado)"
+        help="Após o fluxo YouTube, enriquece cada TrackDTO com compasso/BPM do Spotify"
     )
-    parser.add_argument(
+    yt.add_argument(
         "--spotify-csv",
         default="",
-        help="Caminho de saída CSV para resultados do Spotify (opcional)"
+        help="Se usar --with-spotify, salva resultados Spotify em CSV neste caminho"
     )
 
-    subparsers = parser.add_subparsers(dest="mode")
-
-    # Modo "yt": Pipeline completo YouTube → Análise → (Spotify opcional) → Conversão
-    yt_parser = subparsers.add_parser(
-        "yt",
-        help="Baixa, analisa e converte playlists do YouTube"
+    # ——— Modo “spotify” ———
+    sp = subparsers.add_parser(
+        "spotify",
+        help="Consulta compasso e BPM via Spotify API, sem baixar nada do YouTube"
     )
+    sp.add_argument("--track",  required=True, help="Nome da música para busca")
+    sp.add_argument("--artist", default="",   help="Nome do artista (opcional)")
+    sp.add_argument("--csv",    default="",   help="Salvar resultados em CSV (opcional)")
 
     args = parser.parse_args()
 
-    spotify_service = None
-    spotify_repo    = None
+    if args.mode == "yt":
+        playlists_by_genre = load_playlists()
+        start_time = time.time()
+        all_track_dtos: list[TrackDTO] = []
 
-    # Carrega playlists de arquivo (Repository)
-    playlists_by_genre = load_playlists()
-    all_track_dtos: list[TrackDTO] = []
+        for i, (genre, urls) in enumerate(playlists_by_genre.items()):
+            print(f"\n=== Processando gênero: {genre} ({len(urls)} playlists) ===")
+            genre_dir = os.path.join(config.OUTPUT_DIR, genre)
+            os.makedirs(genre_dir, exist_ok=True)
 
-    # Para cada gênero, orquestra o pipeline (Composition)
-    for genre, urls in playlists_by_genre.items():
-        genre_dir = os.path.join(config.OUTPUT_DIR, genre)
-        os.makedirs(genre_dir, exist_ok=True)
+            runner = BeatForgeRunner(
+                playlist_mgr=PlaylistManager(),
+                downloader=Downloader(genre_dir),
+                analyzer=BPMAnalyzer(),
+                converter=Converter(genre_dir)
+            )
+            track_dtos = runner.run(
+                urls,
+                process_all_entries=False,
+                max_tracks_per_playlist=config.MAX_TRACKS_PER_PLAYLIST
+            )
+            all_track_dtos.extend(track_dtos)
+            print_progress(i,
+                           len(playlists_by_genre),
+                           start_time,
+                           [f"{genre} concluído"])
 
         if args.with_spotify:
-            spotify_service = SpotifyService(
+            # 1) prepare Spotify service & repo
+            service    = SpotifyService(
                 config.SPOTIPY_CLIENT_ID,
                 config.SPOTIPY_CLIENT_SECRET
             )
-            if args.spotify_csv:
-                spotify_repo = CSVRepository(args.spotify_csv)
+            repo       = CSVRepository(args.spotify_csv) if args.spotify_csv else None
+            controller = BPMController(service, repo)
 
-        runner = BeatForgeRunner(
-            playlist_mgr=PlaylistManager(),      # Injeção de dependência
-            downloader=Downloader(genre_dir),
-            analyzer=BPMAnalyzer(),
-            converter=Converter(genre_dir)
-        )
-        # Recebe lista de DTOs do runner
-        track_dtos = runner.run(
-            urls,
-            process_all_entries=False,
-            max_tracks_per_playlist=config.MAX_TRACKS_PER_PLAYLIST, 
-            spotify_service=spotify_service,
-            spotify_repo=spotify_repo
-        )
-        all_track_dtos.extend(track_dtos)
+            # 2) build (track_name, artist) queries
+            queries = [(t.title, t.artist or "") for t in all_track_dtos]
+            # 3) fetch TrackInfo from Spotify
+            track_infos = controller.process(queries)
 
-    # Enriquecimento Spotify (opcional)
-    if args.with_spotify and all_track_dtos:
-        service = SpotifyService(
+            # 4) map Spotify data back into your TrackDTOs
+            for dto, info in zip(all_track_dtos, track_infos):
+                dto.spotify_track_id = info.track_id
+                dto.time_signature   = info.time_signature
+                dto.spotify_bpm      = info.bpm
+
+            # agora all_track_dtos está enriquecido e pronto para uso
+        return
+
+    if args.mode == "spotify":
+        service    = SpotifyService(
             config.SPOTIPY_CLIENT_ID,
             config.SPOTIPY_CLIENT_SECRET
         )
-        repo = CSVRepository(args.spotify_csv) if args.spotify_csv else None
+        repo       = CSVRepository(args.csv) if args.csv else None
         controller = BPMController(service, repo)
-
-        # Constrói queries a partir dos DTOs e processa em lote
-        queries = [(t.title, t.artist or "") for t in all_track_dtos]
-        track_infos = controller.process(queries)
-
-        # Atualiza cada DTO com resultados do Spotify (Polimorfismo & DTO)
-        for dto, info in zip(all_track_dtos, track_infos):
-            dto.spotify_track_id = info.track_id
-            dto.time_signature = info.time_signature
-            dto.spotify_bpm = info.bpm
-
-    return
+        controller.process([(args.track, args.artist)])
+        return
 
 if __name__ == "__main__":
     main()
