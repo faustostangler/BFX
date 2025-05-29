@@ -1,7 +1,10 @@
 import os
+from pathlib import Path
+
 
 # Diretório de saída para arquivos WAV e MP3
 OUTPUT_DIR = r"D:\Fausto Stangler\Documentos\Python\BFX\music"
+OUTPUT_DIR = str(Path.cwd() / "music")
 FILENAME = "playlist"
 
 # Cria diretório se não existir
