@@ -485,9 +485,11 @@ class ScheduleController:
         df = self.serializer.process(annotated)
         # 8) Gerar insights
         self.insights.process(df)
+        df.to_csv('escala_bloco.csv', index=False)
+        return df
 
 
 if __name__ == '__main__':
-    controller = ScheduleController(r'D:\Fausto Stangler\Downloads\bloco')
-    controller.run()
+    controller = ScheduleController(r'D:\Fausto Stangler\Documentos\Python\BFX\pdf')
+    df = controller.run()
     print('done!')
