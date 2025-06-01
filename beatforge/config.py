@@ -10,7 +10,7 @@ FILENAME = "playlist"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Faixas de BPM e targets associados
-BPM_RANGE_START = 105
+BPM_RANGE_START = 50
 BPM_RANGE_END = 210
 BPM_INTERVAL_SIZE = 10
 BPM_TARGET_OFFSET = BPM_INTERVAL_SIZE * 3/4  # = 15
