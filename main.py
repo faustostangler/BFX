@@ -10,6 +10,7 @@ from beatforge.converter import Converter
 from beatforge.track import TrackDTO
 from beatforge.utils import print_progress
 from beatforge.essentia_features import EssentiaFeatureExtractor
+from beatforge.persistence import save_track_list, load_all_tracks
 
 import csv
 import sqlite3
@@ -103,189 +104,17 @@ class BeatForgeRunner:
 
     def load_tracks(self) -> Dict[str, TrackDTO]:
         """
-        Carrega faixas já salvas anteriormente, retornando um dicionário por URL,
-        agora incluindo o campo features (desserializado do JSON).
+        Loads all tracks from the database and returns them as a dictionary.
+
+        Returns:
+            Dict[str, TrackDTO]: A dictionary where the keys are track identifiers (str) and the values are TrackDTO objects representing each track.
         """
         db_path = f"{config.FILENAME}.db"
-        tracks: Dict[str, TrackDTO] = {}
-
-        if not os.path.exists(db_path):
-            return tracks
-
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        for row in cur.execute("""
-            SELECT url, view_count, like_count, comment_count,
-                   engagement_rate, engagement_score_alt, engagement_score_log,
-                   age_weight, title, artist, album, safe_title,
-                   features_json
-            FROM track_info
-        """):
-            # Desserializa o JSON de features
-            raw_json = row[12]  # índice referente a features_json
-            try:
-                feats: Dict[str, Any] = json.loads(raw_json or "{}")
-            except Exception:
-                feats = {}
-
-            t = TrackDTO(
-                url=row[0],
-                view_count=row[1],
-                like_count=row[2],
-                comment_count=row[3],
-                engagement_rate=row[4],
-                engagement_score_alt=row[5],
-                engagement_score_log=row[6],
-                age_weight=row[7],
-                title=row[8],
-                artist=row[9],
-                album=row[10],
-                safe_title=row[11],
-                features=feats
-            )
-            tracks[t.url] = t
-        conn.close()
-        return tracks
+        return load_all_tracks(db_path)
 
     def save_tracks(self, tracks: List[TrackDTO]) -> None:
-        """
-        Persiste as faixas únicas processadas em CSV e SQLite.  
-        Além dos metadados do YouTube, agora persistimos também o dicionário `features` (serializado JSON).
+        save_track_list(tracks, f"{config.FILENAME}.db")
 
-        Para o CSV, acrescentamos a coluna 'features_json'.  
-        Para o SQLite, modificamos/criamos a tabela `track_info` acrescentando o campo `features_json TEXT`.
-        """
-        csv_path = f"{config.FILENAME}.csv"
-        db_path = f"{config.FILENAME}.db"
-
-        # # ===== 1) CSV =====
-        # # Abrimos o CSV em modo 'w' (sobrescreve a cada execução).
-        # with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-        #     writer = csv.writer(f)
-
-        #     # 1.1. Cabeçalho: adicionamos 'features_json' ao final.
-        #     writer.writerow([
-        #         'url', 'view_count', 'like_count', 'comment_count',
-        #         'engagement_rate', 'engagement_score_alt', 'engagement_score_log',
-        #         'age_weight', 'title', 'artist', 'album', 'safe_title',
-        #         'features_json'
-        #     ])
-
-        #     # 1.2. Para cada TrackDTO: extraímos o dict features e convertemos para JSON string.
-        #     for t in tracks:
-        #         # Serializa o dicionário de features (ex: { "bpm": 115.9, "timbral": {...}, ... }) em uma string.
-        #         features_str = json.dumps(t.features or {}, ensure_ascii=False)
-
-        #         writer.writerow([
-        #             t.url,
-        #             t.view_count,
-        #             t.like_count,
-        #             t.comment_count,
-        #             t.engagement_rate,
-        #             t.engagement_score_alt,
-        #             t.engagement_score_log,
-        #             t.age_weight,
-        #             t.title,
-        #             t.artist,
-        #             t.album,
-        #             t.safe_title,
-        #             features_str
-        #         ])
-
-        # ===== 2) SQLite =====
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-
-        # 2.1. Cria a tabela com todas as colunas (incluindo features_json) 
-        #      caso ainda não exista.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS track_info (
-                url TEXT PRIMARY KEY,
-                view_count INTEGER,
-                like_count INTEGER,
-                comment_count INTEGER,
-                engagement_rate REAL,
-                engagement_score_alt REAL,
-                engagement_score_log REAL,
-                age_weight REAL,
-                title TEXT,
-                artist TEXT,
-                album TEXT,
-                safe_title TEXT,
-                features_json TEXT
-            )
-        """)
-        conn.commit()
-
-        # 2.2. Verifica se a coluna 'features_json' de fato está presente na tabela existente.
-        #      Se não estiver, significa que esta tabela foi criada em execução anterior sem features_json.
-        #      Nesse caso, dropamos a tabela inteira e recriamos com o esquema completo.
-        cur.execute("PRAGMA table_info(track_info)")
-        existing_columns = [row[1] for row in cur.fetchall()]  # row[1] = nome da coluna
-
-        if "features_json" not in existing_columns:
-            # Remove a tabela antiga (sem features_json) e cria de novo com o esquema correto
-            cur.execute("DROP TABLE IF EXISTS track_info;")
-            conn.commit()
-
-            cur.execute("""
-                CREATE TABLE track_info (
-                    url TEXT PRIMARY KEY,
-                    view_count INTEGER,
-                    like_count INTEGER,
-                    comment_count INTEGER,
-                    engagement_rate REAL,
-                    engagement_score_alt REAL,
-                    engagement_score_log REAL,
-                    age_weight REAL,
-                    title TEXT,
-                    artist TEXT,
-                    album TEXT,
-                    safe_title TEXT,
-                    features_json TEXT
-                )
-            """)
-            conn.commit()
-
-        # 2.3. Agora que a tabela existe com features_json garantido, inserimos/atualizamos cada TrackDTO
-        for t in tracks:
-            features_str = json.dumps(t.features or {}, ensure_ascii=False)
-
-            cur.execute("""
-                INSERT OR REPLACE INTO track_info (
-                    url, 
-                    view_count, 
-                    like_count, 
-                    comment_count,
-                    engagement_rate, 
-                    engagement_score_alt, 
-                    engagement_score_log,
-                    age_weight, 
-                    title, 
-                    artist, 
-                    album,
-                    safe_title,
-                    features_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                t.url,
-                t.view_count,
-                t.like_count,
-                t.comment_count,
-                t.engagement_rate,
-                t.engagement_score_alt,
-                t.engagement_score_log,
-                t.age_weight,
-                t.title,
-                t.artist,
-                t.album,
-                t.safe_title,
-                features_str
-            ))
-
-        conn.commit()
-        conn.close()
-        
     def _select_curated_tracks(self, tracks: List[TrackDTO], limit: int) -> Tuple[List[TrackDTO], List[TrackDTO], List[TrackDTO]]:
         """
         Retorna três listas distintas:
@@ -368,24 +197,43 @@ class BeatForgeRunner:
                 wav_path = self.downloader.download_to_wav(track.url, track.safe_title)
                 track.wav_path = wav_path
 
-                track.features = self.feature_extractor.extract_all(wav_path)
-                bpm = track.features['bpm_essentia']
-
-                json_path = os.path.splitext(wav_path)[0] + "_features.json"
-                with open(json_path, "w", encoding="utf-8") as jf:
-                    json.dump(track.features, jf, ensure_ascii=False, indent=2)
+                features = self.feature_extractor.extract_all(wav_path)
+                track.bpm_essentia = features.get('bpm_essentia')
+                track.tempo_confidence = features.get('tempo_confidence')
+                track.beats_count = features.get('beats_count')
+                track.onset_rate = features.get('onset_rate')
+                track.harmonic_percussive_ratio = features.get('harmonic_percussive_ratio')
+                track.key = features.get('key')
+                track.scale = features.get('scale')
+                track.key_strength = features.get('key_strength')
+                track.timbral_mfcc_mean = features.get('timbral', {}).get('mfcc_mean')
+                track.timbral_mfcc_std = features.get('timbral', {}).get('mfcc_std')
+                track.spectral_centroid_avg = features.get('spectral', {}).get('centroid_avg')
+                track.spectral_zcr_avg = features.get('spectral', {}).get('zcr_avg')
+                track.spectral_rolloff_avg = features.get('spectral', {}).get('rolloff_avg')
+                track.spectral_flatness_avg = features.get('spectral', {}).get('flatness_avg')
+                track.spectral_flux_avg = features.get('spectral', {}).get('flux_avg')
+                track.spectral_contrast_mean = features.get('spectral', {}).get('contrast_mean')
+                track.spectral_dissonance_avg = features.get('spectral', {}).get('dissonance_avg')
+                track.chroma_chroma_mean = features.get('chroma', {}).get('chroma_mean')
+                track.chroma_chroma_std = features.get('chroma', {}).get('chroma_std')
+                track.dynamics_energy_avg = features.get('dynamics', {}).get('energy_avg')
+                track.dynamics_rms_avg = features.get('dynamics', {}).get('rms_avg')
+                track.dynamics_loudness_avg = features.get('dynamics', {}).get('loudness_avg')
+                track.dynamics_crest_factor = features.get('dynamics', {}).get('crest_factor')
+                track.deep_embeds_vggish = features.get('deep_embeds', {}).get('vggish', [])
 
                 raw_bpm = self.analyzer.extract(wav_path)
                 track.bpm = raw_bpm
 
-                target_bpm = self.analyzer.choose_target(bpm)
+                target_bpm = self.analyzer.choose_target(track.bpm_essentia)
                 track.target_bpm = target_bpm
 
                 self.converter.convert(track)
 
                 results.append(track)
 
-                extra_info=[f"{bpm:.2f} → {target_bpm} bpm {track.view_count} {track.engagement_rate:.2f} {track.safe_title}"]
+                extra_info=[f"{track.bpm_essentia:.2f} → {target_bpm} bpm {track.view_count} {track.engagement_rate:.2f} {track.safe_title}"]
                 print_progress(i, len(unique_tracks), start_time, extra_info)
 
             except Exception as e:

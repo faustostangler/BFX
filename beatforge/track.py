@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional
 
 @dataclass
 class TrackDTO:
@@ -33,23 +32,45 @@ class TrackDTO:
     mp3_path: Optional[str]     = field(default=None)
 
     # —— Metadados do YouTube ——
-    age_weight: Optional[float]        = field(default=None)
-    view_count: Optional[int]        = field(default=None)
-    like_count: Optional[int]        = field(default=None)
-    comment_count: Optional[int]     = field(default=None)
-    engagement_rate: Optional[float] = field(default=None)
-    engagement_score_alt: Optional[float] = field(default=None)
-    engagement_score_log: Optional[float] = field(default=None)
-    title: Optional[str]             = field(default=None)
-    artist: Optional[str]            = field(default=None)
-    album: Optional[str]             = field(default=None)
-    safe_title: Optional[str]        = field(default=None)
-    features: Dict[str, Any] | None  = field(default=None)
+    age_weight: Optional[float]            = field(default=None)
+    view_count: Optional[int]              = field(default=None)
+    like_count: Optional[int]              = field(default=None)
+    comment_count: Optional[int]           = field(default=None)
+    engagement_rate: Optional[float]       = field(default=None)
+    engagement_score_alt: Optional[float]  = field(default=None)
+    engagement_score_log: Optional[float]  = field(default=None)
+    title: Optional[str]                   = field(default=None)
+    artist: Optional[str]                  = field(default=None)
+    album: Optional[str]                   = field(default=None)
+    safe_title: Optional[str]              = field(default=None)
 
-    def __repr__(self) -> str:
-        """
-        Mostra um resumo rápido: url, título e quantas keys há em features.
-        Isso ajuda no debug, sem imprimir o dicionário inteiro.
-        """
-        num_feats = len(self.features or {})
-        return f"<TrackDTO url={self.url!r}, title={self.title!r}, features_keys={num_feats}>"
+    # —— Atributos Essentia (achatados) ——
+    bpm_essentia: Optional[float]                = field(default=None)
+    tempo_confidence: Optional[float]            = field(default=None)
+    beats_count: Optional[int]                   = field(default=None)
+    onset_rate: Optional[float]                  = field(default=None)
+    harmonic_percussive_ratio: Optional[float]   = field(default=None)
+    key: Optional[int]                           = field(default=None)
+    scale: Optional[int]                         = field(default=None)
+    key_strength: Optional[float]                = field(default=None)
+
+    timbral_mfcc_mean: Optional[float]           = field(default=None)
+    timbral_mfcc_std: Optional[float]            = field(default=None)
+
+    spectral_centroid_avg: Optional[float]       = field(default=None)
+    spectral_zcr_avg: Optional[float]            = field(default=None)
+    spectral_rolloff_avg: Optional[float]        = field(default=None)
+    spectral_flatness_avg: Optional[float]       = field(default=None)
+    spectral_flux_avg: Optional[float]           = field(default=None)
+    spectral_contrast_mean: Optional[float]      = field(default=None)
+    spectral_dissonance_avg: Optional[float]     = field(default=None)
+
+    chroma_chroma_mean: Optional[float]          = field(default=None)
+    chroma_chroma_std: Optional[float]           = field(default=None)
+
+    dynamics_energy_avg: Optional[float]         = field(default=None)
+    dynamics_rms_avg: Optional[float]            = field(default=None)
+    dynamics_loudness_avg: Optional[float]       = field(default=None)
+    dynamics_crest_factor: Optional[float]       = field(default=None)
+
+    deep_embeds_vggish: list[float]              = field(default_factory=list)
