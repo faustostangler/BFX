@@ -9,9 +9,11 @@ from beatforge.bpm import BPMAnalyzer
 from beatforge.converter import Converter
 from beatforge.track import TrackDTO
 from beatforge.utils import print_progress
+from beatforge.essentia_features import EssentiaFeatureExtractor
 
 import csv
 import sqlite3
+import json
 import os
 import time
 from typing import Tuple
@@ -36,6 +38,7 @@ class BeatForgeRunner:
         self.downloader   = downloader
         self.analyzer     = analyzer
         self.converter    = converter
+        self.feature_extractor = EssentiaFeatureExtractor()
 
     @staticmethod
     def _select_first_and_top(
@@ -264,6 +267,12 @@ class BeatForgeRunner:
             try:
                 wav_path = self.downloader.download_to_wav(track.url, track.safe_title)
                 track.wav_path = wav_path
+
+                track.features = self.feature_extractor.extract_all(wav_path)
+
+                json_path = os.path.splitext(wav_path)[0] + "_features.json"
+                with open(json_path, "w", encoding="utf-8") as jf:
+                    json.dump(track.features, jf, ensure_ascii=False, indent=2)
 
                 raw_bpm = self.analyzer.extract(wav_path)
                 track.bpm = raw_bpm
