@@ -118,7 +118,7 @@ def save_track_list(tracks: List[TrackDTO], db_path: str):
             }
             cursor.execute(f"""
                 INSERT OR REPLACE INTO {TABLE_NAME} VALUES (
-                    :url, :wav_path, :bpm, :target_bpm, :mp3_path,
+                    :url, :wav_path, :bpm_librosa, :target_bpm, :mp3_path,
                     :age_weight, :view_count, :like_count, :comment_count, :engagement_rate,
                     :engagement_score_alt, :engagement_score_log, :title, :artist, :album, :safe_title,
                     :bpm_essentia, :tempo_confidence, :beats_count, :onset_rate, :harmonic_percussive_ratio,
@@ -152,7 +152,7 @@ def load_all_tracks(db_path: str) -> Dict[str, TrackDTO]:
         - The 'deep_embeds_vggish' field is expected to be a JSON-encoded string or None.
     """
     ensure_schema(db_path)
-    
+
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute(f"SELECT * FROM {TABLE_NAME}")
