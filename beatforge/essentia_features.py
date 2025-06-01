@@ -18,7 +18,7 @@ from essentia.standard import (
     KeyExtractor,
     Onsets,
     Resample,
-    MelBands
+    MelBands, 
 )
 
 # Tentar importar algoritmos “opcionais”; se não existirem, definimos como None
@@ -111,15 +111,14 @@ class EssentiaFeatureExtractor:
         self.mel_bands_vgg = MelBands(
             numberBands=96,
             sampleRate=16000,
-            fftSize=512,
+            inputSize=257,            # 512//2 + 1
             highFrequencyBound=8000
         )
 
         # ——— Componentes opcionais ———
 
         # Chromagram
-        self.chromagram = (
-            Chromagram(sampleRate=44100, frameSize=frame_size, hopSize=hop_size)
+        self.chromagram = (Chromagram(sampleRate=44100, numberBins=84, binsPerOctave=12)
             if Chromagram is not None else None
         )
 
@@ -134,7 +133,7 @@ class EssentiaFeatureExtractor:
         self.flatness = SpectralFlatness() if SpectralFlatness is not None else None
         self.flux = SpectralFlux() if SpectralFlux is not None else None
         self.spectral_contrast = (
-            SpectralContrast(sampleRate=44100, frameSize=frame_size, hopSize=hop_size)
+            SpectralContrast(sampleRate=44100)
             if SpectralContrast is not None else None
         )
         self.dissonance = Dissonance() if Dissonance is not None else None
