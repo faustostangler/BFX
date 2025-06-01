@@ -103,7 +103,8 @@ class BeatForgeRunner:
 
     def load_tracks(self) -> Dict[str, TrackDTO]:
         """
-        Carrega faixas já salvas anteriormente, retornando um dicionário por URL.
+        Carrega faixas já salvas anteriormente, retornando um dicionário por URL,
+        agora incluindo o campo features (desserializado do JSON).
         """
         db_path = f"{config.FILENAME}.db"
         tracks: Dict[str, TrackDTO] = {}
@@ -115,16 +116,32 @@ class BeatForgeRunner:
         cur = conn.cursor()
         for row in cur.execute("""
             SELECT url, view_count, like_count, comment_count,
-                engagement_rate, engagement_score_alt, engagement_score_log,
-                age_weight, title, artist, album, safe_title
+                   engagement_rate, engagement_score_alt, engagement_score_log,
+                   age_weight, title, artist, album, safe_title,
+                   features_json
             FROM track_info
         """):
+            # Desserializa o JSON de features
+            raw_json = row[12]  # índice referente a features_json
+            try:
+                feats: Dict[str, Any] = json.loads(raw_json or "{}")
+            except Exception:
+                feats = {}
+
             t = TrackDTO(
                 url=row[0],
-                view_count=row[1], like_count=row[2], comment_count=row[3],
-                engagement_rate=row[4], engagement_score_alt=row[5],
-                engagement_score_log=row[6], age_weight=row[7],
-                title=row[8], artist=row[9], album=row[10], safe_title=row[11]
+                view_count=row[1],
+                like_count=row[2],
+                comment_count=row[3],
+                engagement_rate=row[4],
+                engagement_score_alt=row[5],
+                engagement_score_log=row[6],
+                age_weight=row[7],
+                title=row[8],
+                artist=row[9],
+                album=row[10],
+                safe_title=row[11],
+                features=feats
             )
             tracks[t.url] = t
         conn.close()
@@ -132,31 +149,87 @@ class BeatForgeRunner:
 
     def save_tracks(self, tracks: List[TrackDTO]) -> None:
         """
-        Persiste as faixas únicas processadas em CSV e SQLite.
+        Persiste as faixas únicas processadas em CSV e SQLite.  
+        Além dos metadados do YouTube, agora persistimos também o dicionário `features` (serializado JSON).
+
+        Para o CSV, acrescentamos a coluna 'features_json'.  
+        Para o SQLite, modificamos/criamos a tabela `track_info` acrescentando o campo `features_json TEXT`.
         """
         csv_path = f"{config.FILENAME}.csv"
         db_path = f"{config.FILENAME}.db"
 
-        # CSV
+        # ===== 1) CSV =====
+        # Abrimos o CSV em modo 'w' (sobrescreve a cada execução).
         with open(csv_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
+
+            # 1.1. Cabeçalho: adicionamos 'features_json' ao final.
             writer.writerow([
                 'url', 'view_count', 'like_count', 'comment_count',
                 'engagement_rate', 'engagement_score_alt', 'engagement_score_log',
-                'age_weight', 'title', 'artist', 'album', 'safe_title'
+                'age_weight', 'title', 'artist', 'album', 'safe_title',
+                'features_json'
             ])
+
+            # 1.2. Para cada TrackDTO: extraímos o dict features e convertemos para JSON string.
             for t in tracks:
+                # Serializa o dicionário de features (ex: { "bpm": 115.9, "timbral": {...}, ... }) em uma string.
+                features_str = json.dumps(t.features or {}, ensure_ascii=False)
+
                 writer.writerow([
-                    t.url, t.view_count, t.like_count, t.comment_count,
-                    t.engagement_rate, t.engagement_score_alt, t.engagement_score_log,
-                    t.age_weight, t.title, t.artist, t.album, t.safe_title
+                    t.url,
+                    t.view_count,
+                    t.like_count,
+                    t.comment_count,
+                    t.engagement_rate,
+                    t.engagement_score_alt,
+                    t.engagement_score_log,
+                    t.age_weight,
+                    t.title,
+                    t.artist,
+                    t.album,
+                    t.safe_title,
+                    features_str
                 ])
 
-        # SQLite
+        # ===== 2) SQLite =====
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
+
+        # 2.1. Cria a tabela com todas as colunas (incluindo features_json) 
+        #      caso ainda não exista.
         cur.execute("""
-                CREATE TABLE IF NOT EXISTS track_info (
+            CREATE TABLE IF NOT EXISTS track_info (
+                url TEXT PRIMARY KEY,
+                view_count INTEGER,
+                like_count INTEGER,
+                comment_count INTEGER,
+                engagement_rate REAL,
+                engagement_score_alt REAL,
+                engagement_score_log REAL,
+                age_weight REAL,
+                title TEXT,
+                artist TEXT,
+                album TEXT,
+                safe_title TEXT,
+                features_json TEXT
+            )
+        """)
+        conn.commit()
+
+        # 2.2. Verifica se a coluna 'features_json' de fato está presente na tabela existente.
+        #      Se não estiver, significa que esta tabela foi criada em execução anterior sem features_json.
+        #      Nesse caso, dropamos a tabela inteira e recriamos com o esquema completo.
+        cur.execute("PRAGMA table_info(track_info)")
+        existing_columns = [row[1] for row in cur.fetchall()]  # row[1] = nome da coluna
+
+        if "features_json" not in existing_columns:
+            # Remove a tabela antiga (sem features_json) e cria de novo com o esquema correto
+            cur.execute("DROP TABLE IF EXISTS track_info;")
+            conn.commit()
+
+            cur.execute("""
+                CREATE TABLE track_info (
                     url TEXT PRIMARY KEY,
                     view_count INTEGER,
                     like_count INTEGER,
@@ -164,28 +237,46 @@ class BeatForgeRunner:
                     engagement_rate REAL,
                     engagement_score_alt REAL,
                     engagement_score_log REAL,
-                    age_weight INTEGER,
+                    age_weight REAL,
                     title TEXT,
                     artist TEXT,
                     album TEXT,
-                    safe_title TEXT
+                    safe_title TEXT,
+                    features_json TEXT
                 )
-        """)
+            """)
+            conn.commit()
+
+        # 2.3. Agora que a tabela existe com features_json garantido, inserimos/atualizamos cada TrackDTO
         for t in tracks:
+            features_str = json.dumps(t.features or {}, ensure_ascii=False)
+
             cur.execute("""
                 INSERT OR REPLACE INTO track_info (
                     url, view_count, like_count, comment_count,
                     engagement_rate, engagement_score_alt, engagement_score_log,
-                    age_weight, title, artist, album, safe_title
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    age_weight, title, artist, album, safe_title,
+                    features_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                t.url, t.view_count, t.like_count, t.comment_count,
-                t.engagement_rate, t.engagement_score_alt, t.engagement_score_log,
-                t.age_weight, t.title, t.artist, t.album, t.safe_title
+                t.url,
+                t.view_count,
+                t.like_count,
+                t.comment_count,
+                t.engagement_rate,
+                t.engagement_score_alt,
+                t.engagement_score_log,
+                t.age_weight,
+                t.title,
+                t.artist,
+                t.album,
+                t.safe_title,
+                features_str
             ))
+
         conn.commit()
         conn.close()
-
+        
     def _select_curated_tracks(self, tracks: List[TrackDTO], limit: int) -> Tuple[List[TrackDTO], List[TrackDTO], List[TrackDTO]]:
         """
         Retorna três listas distintas:

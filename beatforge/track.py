@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 @dataclass
 class TrackDTO:
@@ -44,3 +44,12 @@ class TrackDTO:
     artist: Optional[str]            = field(default=None)
     album: Optional[str]             = field(default=None)
     safe_title: Optional[str]        = field(default=None)
+    features: Dict[str, Any] | None  = field(default=None)
+    
+    def __repr__(self) -> str:
+        """
+        Mostra um resumo rápido: url, título e quantas keys há em features.
+        Isso ajuda no debug, sem imprimir o dicionário inteiro.
+        """
+        num_feats = len(self.features or {})
+        return f"<TrackDTO url={self.url!r}, title={self.title!r}, features_keys={num_feats}>"
