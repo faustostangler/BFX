@@ -373,7 +373,7 @@ class EssentiaFeatureExtractor:
                     vggish_mean = []
 
             return {
-                "bpm": bpm,
+                "bpm_essentia": bpm,
                 "tempo_confidence": confidence,
                 "beats_count": len(beats),
                 "onset_rate": onset_rate,

@@ -158,39 +158,39 @@ class BeatForgeRunner:
         csv_path = f"{config.FILENAME}.csv"
         db_path = f"{config.FILENAME}.db"
 
-        # ===== 1) CSV =====
-        # Abrimos o CSV em modo 'w' (sobrescreve a cada execução).
-        with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
+        # # ===== 1) CSV =====
+        # # Abrimos o CSV em modo 'w' (sobrescreve a cada execução).
+        # with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+        #     writer = csv.writer(f)
 
-            # 1.1. Cabeçalho: adicionamos 'features_json' ao final.
-            writer.writerow([
-                'url', 'view_count', 'like_count', 'comment_count',
-                'engagement_rate', 'engagement_score_alt', 'engagement_score_log',
-                'age_weight', 'title', 'artist', 'album', 'safe_title',
-                'features_json'
-            ])
+        #     # 1.1. Cabeçalho: adicionamos 'features_json' ao final.
+        #     writer.writerow([
+        #         'url', 'view_count', 'like_count', 'comment_count',
+        #         'engagement_rate', 'engagement_score_alt', 'engagement_score_log',
+        #         'age_weight', 'title', 'artist', 'album', 'safe_title',
+        #         'features_json'
+        #     ])
 
-            # 1.2. Para cada TrackDTO: extraímos o dict features e convertemos para JSON string.
-            for t in tracks:
-                # Serializa o dicionário de features (ex: { "bpm": 115.9, "timbral": {...}, ... }) em uma string.
-                features_str = json.dumps(t.features or {}, ensure_ascii=False)
+        #     # 1.2. Para cada TrackDTO: extraímos o dict features e convertemos para JSON string.
+        #     for t in tracks:
+        #         # Serializa o dicionário de features (ex: { "bpm": 115.9, "timbral": {...}, ... }) em uma string.
+        #         features_str = json.dumps(t.features or {}, ensure_ascii=False)
 
-                writer.writerow([
-                    t.url,
-                    t.view_count,
-                    t.like_count,
-                    t.comment_count,
-                    t.engagement_rate,
-                    t.engagement_score_alt,
-                    t.engagement_score_log,
-                    t.age_weight,
-                    t.title,
-                    t.artist,
-                    t.album,
-                    t.safe_title,
-                    features_str
-                ])
+        #         writer.writerow([
+        #             t.url,
+        #             t.view_count,
+        #             t.like_count,
+        #             t.comment_count,
+        #             t.engagement_rate,
+        #             t.engagement_score_alt,
+        #             t.engagement_score_log,
+        #             t.age_weight,
+        #             t.title,
+        #             t.artist,
+        #             t.album,
+        #             t.safe_title,
+        #             features_str
+        #         ])
 
         # ===== 2) SQLite =====
         conn = sqlite3.connect(db_path)
@@ -253,9 +253,18 @@ class BeatForgeRunner:
 
             cur.execute("""
                 INSERT OR REPLACE INTO track_info (
-                    url, view_count, like_count, comment_count,
-                    engagement_rate, engagement_score_alt, engagement_score_log,
-                    age_weight, title, artist, album, safe_title,
+                    url, 
+                    view_count, 
+                    like_count, 
+                    comment_count,
+                    engagement_rate, 
+                    engagement_score_alt, 
+                    engagement_score_log,
+                    age_weight, 
+                    title, 
+                    artist, 
+                    album,
+                    safe_title,
                     features_json
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
@@ -335,7 +344,7 @@ class BeatForgeRunner:
                 selected_tracks = tracks
             else:
                 first = [tracks[0]]
-                top_alt, top_log, top_viral = self._select_curated_tracks(tracks[1:], limit=5)
+                top_alt, top_log, top_viral = self._select_curated_tracks(tracks[1:], limit=max_tracks_per_playlist)
 
                 seen = set()
                 selected_tracks = []
@@ -344,7 +353,7 @@ class BeatForgeRunner:
                         seen.add(t.url)
                         selected_tracks.append(t)
 
-            for t in selected_tracks:
+            for t in selected_tracks[:max_tracks_per_playlist]:
                 if t.url not in existing_tracks_by_url:
                     all_tracks_by_url[t.url] = t  # sobrescreve se duplicado, mas ignora se já existe
 
@@ -360,6 +369,7 @@ class BeatForgeRunner:
                 track.wav_path = wav_path
 
                 track.features = self.feature_extractor.extract_all(wav_path)
+                bpm = track.features['bpm_essentia']
 
                 json_path = os.path.splitext(wav_path)[0] + "_features.json"
                 with open(json_path, "w", encoding="utf-8") as jf:
@@ -368,18 +378,20 @@ class BeatForgeRunner:
                 raw_bpm = self.analyzer.extract(wav_path)
                 track.bpm = raw_bpm
 
-                target_bpm = self.analyzer.choose_target(raw_bpm)
+                target_bpm = self.analyzer.choose_target(bpm)
                 track.target_bpm = target_bpm
 
                 self.converter.convert(track)
 
                 results.append(track)
 
-                extra_info=[f"{raw_bpm:.2f} → {target_bpm} bpm {track.view_count} {track.engagement_rate:.2f} {track.safe_title}"]
+                extra_info=[f"{bpm:.2f} → {target_bpm} bpm {track.view_count} {track.engagement_rate:.2f} {track.safe_title}"]
                 print_progress(i, len(unique_tracks), start_time, extra_info)
 
             except Exception as e:
                 print(f"✗ Erro em {track.safe_title}: {e}")
+
+        self.save_tracks(unique_tracks)
 
         return results
 

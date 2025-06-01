@@ -45,7 +45,7 @@ class TrackDTO:
     album: Optional[str]             = field(default=None)
     safe_title: Optional[str]        = field(default=None)
     features: Dict[str, Any] | None  = field(default=None)
-    
+
     def __repr__(self) -> str:
         """
         Mostra um resumo rápido: url, título e quantas keys há em features.
