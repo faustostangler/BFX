@@ -111,7 +111,7 @@ class EssentiaFeatureExtractor:
         self.mel_bands_vgg = MelBands(
             numberBands=96,
             sampleRate=16000,
-            inputSize=257,            # 512//2 + 1
+            inputSize = self.frame_size // 2 + 1,
             highFrequencyBound=8000
         )
 

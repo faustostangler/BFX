@@ -27,7 +27,7 @@ class TrackDTO:
     """
     url: str
     wav_path: Optional[str]     = field(default=None)
-    bpm: Optional[float]        = field(default=None)
+    bpm_librosa: Optional[float]        = field(default=None)
     target_bpm: Optional[int]   = field(default=None)
     mp3_path: Optional[str]     = field(default=None)
 

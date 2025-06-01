@@ -223,8 +223,8 @@ class BeatForgeRunner:
                 track.dynamics_crest_factor = features.get('dynamics', {}).get('crest_factor')
                 track.deep_embeds_vggish = features.get('deep_embeds', {}).get('vggish', [])
 
-                raw_bpm = self.analyzer.extract(wav_path)
-                track.bpm = raw_bpm
+                bpm_librosa = self.analyzer.extract(wav_path)
+                track.bpm_librosa = bpm_librosa
 
                 target_bpm = self.analyzer.choose_target(track.bpm_essentia)
                 track.target_bpm = target_bpm

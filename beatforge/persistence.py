@@ -3,7 +3,7 @@
 import sqlite3
 import json
 from typing import List, Dict
-from track import TrackDTO
+from beatforge.track import TrackDTO
 
 # Name of the table used for storing track information in the database
 TABLE_NAME = "track_info"
@@ -41,7 +41,7 @@ def ensure_schema(db_path: str):
             CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
                 url TEXT PRIMARY KEY,
                 wav_path TEXT,
-                bpm REAL,
+                bpm_librosa REAL,
                 target_bpm INTEGER,
                 mp3_path TEXT,
 
@@ -107,6 +107,15 @@ def save_track_list(tracks: List[TrackDTO], db_path: str):
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
         for t in tracks:
+            params = {
+                **t.__dict__,
+                "timbral_mfcc_mean": json.dumps(t.timbral_mfcc_mean),
+                "timbral_mfcc_std": json.dumps(t.timbral_mfcc_std),
+                "spectral_contrast_mean": json.dumps(t.spectral_contrast_mean),
+                "chroma_chroma_mean": json.dumps(t.chroma_chroma_mean),
+                "chroma_chroma_std": json.dumps(t.chroma_chroma_std),
+                "deep_embeds_vggish": json.dumps(t.deep_embeds_vggish),
+            }
             cursor.execute(f"""
                 INSERT OR REPLACE INTO {TABLE_NAME} VALUES (
                     :url, :wav_path, :bpm, :target_bpm, :mp3_path,
@@ -121,10 +130,7 @@ def save_track_list(tracks: List[TrackDTO], db_path: str):
                     :dynamics_energy_avg, :dynamics_rms_avg, :dynamics_loudness_avg, :dynamics_crest_factor,
                     :deep_embeds_vggish
                 )
-            """, {
-                **t.__dict__,
-                "deep_embeds_vggish": json.dumps(t.deep_embeds_vggish),
-            })
+            """, params)
         conn.commit()
 
 def load_all_tracks(db_path: str) -> Dict[str, TrackDTO]:
@@ -145,6 +151,8 @@ def load_all_tracks(db_path: str) -> Dict[str, TrackDTO]:
         - Assumes the existence of a TABLE_NAME constant and a TrackDTO class.
         - The 'deep_embeds_vggish' field is expected to be a JSON-encoded string or None.
     """
+    ensure_schema(db_path)
+    
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute(f"SELECT * FROM {TABLE_NAME}")
@@ -152,7 +160,17 @@ def load_all_tracks(db_path: str) -> Dict[str, TrackDTO]:
         result = {}
         for row in cursor.fetchall():
             data = dict(zip(columns, row))
-            data["deep_embeds_vggish"] = json.loads(data["deep_embeds_vggish"]) if data["deep_embeds_vggish"] else []
-            track = TrackDTO(**data)
-            result[track.url] = track
+            for k in [
+                "timbral_mfcc_mean", "timbral_mfcc_std",
+                "spectral_contrast_mean", "chroma_chroma_mean",
+                "chroma_chroma_std", "deep_embeds_vggish"
+            ]:
+                if data.get(k):
+                    try:
+                        data[k] = json.loads(data[k])
+                    except json.JSONDecodeError:
+                        data[k] = []
+                else:
+                    data[k] = []
+            result[data["url"]] = TrackDTO(**data)
         return result
