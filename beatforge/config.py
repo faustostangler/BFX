@@ -2,7 +2,8 @@ import os
 from pathlib import Path
 
 # Diretório de saída para arquivos WAV e MP3
-OUTPUT_DIR = r"D:\Fausto Stangler\Documentos\Python\BFX\music"
+# OUTPUT_DIR = r"D:\Fausto Stangler\Documentos\Python\BFX\music"
+OUTPUT_DIR = r"D:\BFX\music"
 OUTPUT_DIR = str(Path.cwd() / "music")
 FILENAME = "playlist"
 
@@ -16,8 +17,4 @@ BPM_INTERVAL_SIZE = 20
 BPM_TARGET_OFFSET = BPM_INTERVAL_SIZE * 3/4  # = 15
 BPM_EXTREMES_MULTIPLIER = 2
 
-<<<<<<< HEAD
-MAX_TRACKS_PER_PLAYLIST = 15  # ou o valor desejado
-=======
-MAX_TRACKS_PER_PLAYLIST = 3  # ou o valor desejado
->>>>>>> 174e98d567852545f2673cf74ac2162a45e68e4c
+MAX_TRACKS_PER_PLAYLIST = 25  # ou o valor desejado

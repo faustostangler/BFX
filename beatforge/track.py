@@ -74,3 +74,13 @@ class TrackDTO:
     dynamics_crest_factor: Optional[float]       = field(default=None)
 
     deep_embeds_vggish: list[float]              = field(default_factory=list)
+
+    @property
+    def bpm(self) -> Optional[float]:
+        """
+        Preferred BPM: use Essentia’s estimate if set,
+        otherwise fall back to Librosa’s.
+        """
+        if self.bpm_essentia is not None:
+            return self.bpm_essentia
+        return self.bpm_librosa

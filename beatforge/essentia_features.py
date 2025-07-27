@@ -89,7 +89,10 @@ class EssentiaFeatureExtractor:
         self.spectrum = Spectrum()
 
         # Timbre / MFCC
-        self.mfcc = MFCC()
+        bin_count = self.frame_size // 2 + 1
+        self.mfcc     = MFCC(inputSize=bin_count,
+                              numberBands=40,           # or whatever you prefer
+                              numberCoefficients=13)
 
         # Atributos espectrais básicos
         self.centroid = Centroid()

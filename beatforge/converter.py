@@ -64,9 +64,10 @@ class Converter:
         # apaga o WAV para liberar espaço em disco
         try:
             Path(track.wav_path).unlink(missing_ok=True)
-
         except Exception:
             pass
-        track.wav_path = None
-#        track.mp3_path = str(out_mp3)
+
+#         track.wav_path = None
+        track.mp3_path = str(out_mp3)
+
         return out_mp3
