@@ -9,9 +9,12 @@ from beatforge.bpm import BPMAnalyzer
 from beatforge.converter import Converter
 from beatforge.track import TrackDTO
 from beatforge.utils import print_progress
+from beatforge.essentia_features import EssentiaFeatureExtractor
+from beatforge.persistence import save_track_list, load_all_tracks
 
 import csv
 import sqlite3
+import json
 import os
 import time
 from typing import Tuple
@@ -36,6 +39,7 @@ class BeatForgeRunner:
         self.downloader   = downloader
         self.analyzer     = analyzer
         self.converter    = converter
+        self.feature_extractor = EssentiaFeatureExtractor()
 
     @staticmethod
     def _select_first_and_top(
@@ -100,88 +104,16 @@ class BeatForgeRunner:
 
     def load_tracks(self) -> Dict[str, TrackDTO]:
         """
-        Carrega faixas já salvas anteriormente, retornando um dicionário por URL.
+        Loads all tracks from the database and returns them as a dictionary.
+
+        Returns:
+            Dict[str, TrackDTO]: A dictionary where the keys are track identifiers (str) and the values are TrackDTO objects representing each track.
         """
         db_path = f"{config.FILENAME}.db"
-        tracks: Dict[str, TrackDTO] = {}
-
-        if not os.path.exists(db_path):
-            return tracks
-
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        for row in cur.execute("""
-            SELECT url, view_count, like_count, comment_count,
-                engagement_rate, engagement_score_alt, engagement_score_log,
-                age_weight, title, artist, album, safe_title
-            FROM track_info
-        """):
-            t = TrackDTO(
-                url=row[0],
-                view_count=row[1], like_count=row[2], comment_count=row[3],
-                engagement_rate=row[4], engagement_score_alt=row[5],
-                engagement_score_log=row[6], age_weight=row[7],
-                title=row[8], artist=row[9], album=row[10], safe_title=row[11]
-            )
-            tracks[t.url] = t
-        conn.close()
-        return tracks
+        return load_all_tracks(db_path)
 
     def save_tracks(self, tracks: List[TrackDTO]) -> None:
-        """
-        Persiste as faixas únicas processadas em CSV e SQLite.
-        """
-        csv_path = f"{config.FILENAME}.csv"
-        db_path = f"{config.FILENAME}.db"
-
-        # CSV
-        with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                'url', 'view_count', 'like_count', 'comment_count',
-                'engagement_rate', 'engagement_score_alt', 'engagement_score_log',
-                'age_weight', 'title', 'artist', 'album', 'safe_title'
-            ])
-            for t in tracks:
-                writer.writerow([
-                    t.url, t.view_count, t.like_count, t.comment_count,
-                    t.engagement_rate, t.engagement_score_alt, t.engagement_score_log,
-                    t.age_weight, t.title, t.artist, t.album, t.safe_title
-                ])
-
-        # SQLite
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        cur.execute("""
-                CREATE TABLE IF NOT EXISTS track_info (
-                    url TEXT PRIMARY KEY,
-                    view_count INTEGER,
-                    like_count INTEGER,
-                    comment_count INTEGER,
-                    engagement_rate REAL,
-                    engagement_score_alt REAL,
-                    engagement_score_log REAL,
-                    age_weight INTEGER,
-                    title TEXT,
-                    artist TEXT,
-                    album TEXT,
-                    safe_title TEXT
-                )
-        """)
-        for t in tracks:
-            cur.execute("""
-                INSERT OR REPLACE INTO track_info (
-                    url, view_count, like_count, comment_count,
-                    engagement_rate, engagement_score_alt, engagement_score_log,
-                    age_weight, title, artist, album, safe_title
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                t.url, t.view_count, t.like_count, t.comment_count,
-                t.engagement_rate, t.engagement_score_alt, t.engagement_score_log,
-                t.age_weight, t.title, t.artist, t.album, t.safe_title
-            ))
-        conn.commit()
-        conn.close()
+        save_track_list(tracks, f"{config.FILENAME}.db")
 
     def _select_curated_tracks(self, tracks: List[TrackDTO], limit: int) -> Tuple[List[TrackDTO], List[TrackDTO], List[TrackDTO]]:
         """
@@ -241,7 +173,7 @@ class BeatForgeRunner:
                 selected_tracks = tracks
             else:
                 first = [tracks[0]]
-                top_alt, top_log, top_viral = self._select_curated_tracks(tracks[1:], limit=5)
+                top_alt, top_log, top_viral = self._select_curated_tracks(tracks[1:], limit=max_tracks_per_playlist)
 
                 seen = set()
                 selected_tracks = []
@@ -250,7 +182,7 @@ class BeatForgeRunner:
                         seen.add(t.url)
                         selected_tracks.append(t)
 
-            for t in selected_tracks:
+            for t in selected_tracks[:max_tracks_per_playlist]:
                 if t.url not in existing_tracks_by_url:
                     all_tracks_by_url[t.url] = t  # sobrescreve se duplicado, mas ignora se já existe
 
@@ -265,21 +197,49 @@ class BeatForgeRunner:
                 wav_path = self.downloader.download_to_wav(track.url, track.safe_title)
                 track.wav_path = wav_path
 
-                raw_bpm = self.analyzer.extract(wav_path)
-                track.bpm = raw_bpm
+                features = self.feature_extractor.extract_all(wav_path)
+                track.bpm_essentia = features.get('bpm_essentia')
+                track.tempo_confidence = features.get('tempo_confidence')
+                track.beats_count = features.get('beats_count')
+                track.onset_rate = features.get('onset_rate')
+                track.harmonic_percussive_ratio = features.get('harmonic_percussive_ratio')
+                track.key = features.get('key')
+                track.scale = features.get('scale')
+                track.key_strength = features.get('key_strength')
+                track.timbral_mfcc_mean = features.get('timbral', {}).get('mfcc_mean')
+                track.timbral_mfcc_std = features.get('timbral', {}).get('mfcc_std')
+                track.spectral_centroid_avg = features.get('spectral', {}).get('centroid_avg')
+                track.spectral_zcr_avg = features.get('spectral', {}).get('zcr_avg')
+                track.spectral_rolloff_avg = features.get('spectral', {}).get('rolloff_avg')
+                track.spectral_flatness_avg = features.get('spectral', {}).get('flatness_avg')
+                track.spectral_flux_avg = features.get('spectral', {}).get('flux_avg')
+                track.spectral_contrast_mean = features.get('spectral', {}).get('contrast_mean')
+                track.spectral_dissonance_avg = features.get('spectral', {}).get('dissonance_avg')
+                track.chroma_chroma_mean = features.get('chroma', {}).get('chroma_mean')
+                track.chroma_chroma_std = features.get('chroma', {}).get('chroma_std')
+                track.dynamics_energy_avg = features.get('dynamics', {}).get('energy_avg')
+                track.dynamics_rms_avg = features.get('dynamics', {}).get('rms_avg')
+                track.dynamics_loudness_avg = features.get('dynamics', {}).get('loudness_avg')
+                track.dynamics_crest_factor = features.get('dynamics', {}).get('crest_factor')
+                track.deep_embeds_vggish = features.get('deep_embeds', {}).get('vggish', [])
 
-                target_bpm = self.analyzer.choose_target(raw_bpm)
+                bpm_librosa = self.analyzer.extract(wav_path)
+                track.bpm_librosa = bpm_librosa
+
+                target_bpm = self.analyzer.choose_target(track.bpm_essentia)
                 track.target_bpm = target_bpm
 
                 self.converter.convert(track)
 
                 results.append(track)
 
-                extra_info=[f"{raw_bpm:.2f} → {target_bpm} bpm {track.view_count} {track.engagement_rate:.2f} {track.safe_title}"]
+                extra_info=[f"{track.bpm_essentia:.2f} → {target_bpm} bpm {track.view_count} {track.engagement_rate:.2f} {track.safe_title}"]
                 print_progress(i, len(unique_tracks), start_time, extra_info)
 
             except Exception as e:
                 print(f"✗ Erro em {track.safe_title}: {e}")
+
+        self.save_tracks(unique_tracks)
 
         return results
 

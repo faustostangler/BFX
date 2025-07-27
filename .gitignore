@@ -110,6 +110,7 @@ temp/
 *.lnk
 *.htm
 *.html
+.json
 
 # Compressed and archived files
 *.zip

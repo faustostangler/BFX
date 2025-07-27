@@ -7,6 +7,7 @@ import re
 import time
 import math
 from datetime import datetime
+import json
 
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from collections import OrderedDict
@@ -15,6 +16,7 @@ from typing import List, Optional
 from beatforge.track import TrackDTO
 from beatforge import config
 from beatforge.utils import print_progress
+from beatforge.persistence import save_track_list
 
 class PlaylistManager:
     """
@@ -184,109 +186,7 @@ class PlaylistManager:
     def get_links(self, playlist_url: str, idx: int, max_tracks_per_playlist: Optional[int] = None) -> List[TrackDTO]:
         all_tracks = self.fetch_entries(playlist_url, idx, max_tracks_per_playlist)
 
-        self.save_tracks_csv(all_tracks)
-        self.save_tracks_db(all_tracks)
+        # self.save_tracks_csv(all_tracks)
+        save_track_list(all_tracks, f"{config.FILENAME}.db")
 
         return all_tracks[:max_tracks_per_playlist] if max_tracks_per_playlist is not None else all_tracks
-
-    def save_tracks_csv(self, tracks: List[TrackDTO], csv_path: Optional[str] = None) -> None:
-        if csv_path is None:
-            csv_path = f"{config.FILENAME}.csv"
-
-        fieldnames = [
-            'url', 'view_count', 'like_count', 'comment_count',
-            'engagement_rate', 'title', 'artist', 'album', 'safe_title'
-        ]
-        with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            for t in tracks:
-                writer.writerow({
-                    'url': t.url,
-                    'view_count': t.view_count,
-                    'like_count': t.like_count,
-                    'comment_count': t.comment_count,
-                    'engagement_rate': t.engagement_rate,
-                    'title': t.title,
-                    'artist': t.artist,
-                    'album': t.album,
-                    'safe_title': t.safe_title
-                })
-
-    def load_tracks_csv(self, csv_path: Optional[str] = None) -> List[TrackDTO]:
-        if csv_path is None:
-            csv_path = f"{config.FILENAME}.csv"
-
-        tracks: List[TrackDTO] = []
-        with open(csv_path, newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                tracks.append(TrackDTO(
-                    url=row['url'],
-                    view_count=int(row['view_count']),
-                    like_count=int(row['like_count']),
-                    comment_count=int(row['comment_count']),
-                    engagement_rate=float(row['engagement_rate']),
-                    title=row['title'],
-                    artist=row['artist'],
-                    album=row['album'],
-                    safe_title=row['safe_title']
-                ))
-        return tracks
-
-    def save_tracks_db(self, tracks: List[TrackDTO], db_path: Optional[str] = None) -> None:
-        if db_path is None:
-            db_path = f"{config.FILENAME}.db"
-
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS track_info (
-                url TEXT PRIMARY KEY,
-                view_count INTEGER,
-                like_count INTEGER,
-                comment_count INTEGER,
-                engagement_rate REAL,
-                engagement_score_alt REAL,
-                engagement_score_log REAL,
-                age_weight REAL,
-                title TEXT,
-                artist TEXT,
-                album TEXT,
-                safe_title TEXT
-            )
-        """)
-        for t in tracks:
-            cur.execute("""
-                INSERT OR REPLACE INTO track_info (
-                    url, view_count, like_count, comment_count,
-                    engagement_rate, engagement_score_alt, engagement_score_log,
-                    age_weight, title, artist, album, safe_title
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                t.url, t.view_count, t.like_count, t.comment_count,
-                t.engagement_rate, t.engagement_score_alt, t.engagement_score_log,
-                t.age_weight, t.title, t.artist, t.album, t.safe_title
-            ))
-        conn.commit()
-        conn.close()
-
-    def load_tracks_db(self, db_path: Optional[str] = None) -> List[TrackDTO]:
-        if db_path is None:
-            db_path = f"{config.FILENAME}.db"
-
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        tracks: List[TrackDTO] = []
-        for row in cur.execute("""
-            SELECT url, view_count, like_count, comment_count,
-                   engagement_rate, title, artist, album, safe_title
-            FROM track_info
-        """):
-            tracks.append(TrackDTO(
-                url=row[0], view_count=row[1], like_count=row[2],
-                comment_count=row[3], engagement_rate=row[4],
-                title=row[5], artist=row[6], album=row[7], safe_title=row[8]
-            ))
-        conn.close()
-        return tracks
