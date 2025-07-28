@@ -82,6 +82,10 @@ class PlaylistManager:
         Retorna:
             (engagement_rate, engagement_score_alt, engagement_score_log)
         """
+        comment_rate_multiplier = 0.7
+        comment_multiplier = 0.3
+        view_multiplier = 1.0
+
         if vc == 0:
             return 0.0, 0.0, 0.0
 
@@ -92,8 +96,8 @@ class PlaylistManager:
 
         comment_to_like = cc / lc * (multiplier/100) if lc else 0.0
 
-        score_alt = 0.7 * comment_rate + 0.3 * comment_to_like - 1.0 * view_norm
-        score_log = 0.7 * comment_rate + 0.3 * comment_to_like - 1.0 * view_log_norm
+        score_alt = comment_rate_multiplier * comment_rate + comment_multiplier * comment_to_like - view_multiplier * view_norm
+        score_log = comment_rate_multiplier * comment_rate + comment_multiplier * comment_to_like - view_multiplier * view_log_norm
         er = (multiplier/100) * (lc + cc) / vc
 
         return er, score_alt, score_log
@@ -108,25 +112,27 @@ class PlaylistManager:
         safe_title = f"{title} – {artist} – {album}".strip()
         return safe_title[:128]
 
-    def fetch_entries(self, url: str, idx: int, max_tracks_per_playlist: int = config.MAX_TRACKS_PER_PLAYLIST) -> List[TrackDTO]:
+    def fetch_entries(self, url: str, idx: int, max_tracks_per_playlist: int = config.MAX_TRACKS_PER_PLAYLIST, processed: list[str] = []) -> List[TrackDTO]:
         clean_url = self.sanitize_url(url)
         if not clean_url:
             return []
         
-        with yt_dlp.YoutubeDL(self._ydl_opts_flat) as ydl_flat:
-            info = ydl_flat.extract_info(clean_url, download=False)
+        try:
+            with yt_dlp.YoutubeDL(self._ydl_opts_flat) as ydl_flat:
+                info = ydl_flat.extract_info(clean_url, download=False)
 
-        if not info:
+        except Exception as e:
             print(f"✗ Nenhuma informação retornada para: {clean_url}")
             return []
 
         entries = info.get('entries') or []
+        entries_to_process = [e for e in entries if e.get('url') not in processed]
         urls = []
-        if not entries:
+        if not entries_to_process:
             page = info.get('webpage_url') or f"https://www.youtube.com/watch?v={info['id']}"
             urls.append(page)
         else:
-            entries_max = entries[:max_tracks_per_playlist]
+            entries_max = entries_to_process[:max_tracks_per_playlist]
             for e in entries_max:
                 vid = e.get('webpage_url') or e.get('url') or e.get('id')
                 if not vid.startswith('http'):
@@ -183,8 +189,8 @@ class PlaylistManager:
 
         return tracks
 
-    def get_links(self, playlist_url: str, idx: int, max_tracks_per_playlist: Optional[int] = None) -> List[TrackDTO]:
-        all_tracks = self.fetch_entries(playlist_url, idx, max_tracks_per_playlist)
+    def get_links(self, playlist_url: str, idx: int, max_tracks_per_playlist: Optional[int] = None, processed: list[str] = []) -> List[TrackDTO]:
+        all_tracks = self.fetch_entries(playlist_url, idx, max_tracks_per_playlist, processed)
 
         # self.save_tracks_csv(all_tracks)
         save_track_list(all_tracks, f"{config.FILENAME}.db")

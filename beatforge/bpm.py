@@ -1,6 +1,7 @@
 import librosa
 from typing import List, Tuple
 from beatforge import config
+from essentia.standard import MonoLoader, RhythmExtractor2013
 
 
 class BPMAnalyzer:
@@ -41,8 +42,8 @@ class BPMAnalyzer:
         start = self.min_bpm
         while start < self.max_bpm:
             end = start + self.interval
-            target = start + self.offset
-            target = int(round(target / (self.interval/2)) * (self.interval/2))  # nearest-10 → 20
+            target = int(start + self.offset)
+            # target = int(round(target / (self.interval/2)) * (self.interval/2))  # nearest-10 → 20
             ranges.append((start, end, target))
             start = end
         return ranges
@@ -59,10 +60,20 @@ class BPMAnalyzer:
         :param wav_path: Caminho absoluto do arquivo .wav
         :return: BPM ajustado (normalizado)
         """
-        y, sr = librosa.load(wav_path, sr=None)
-        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-        bpm = float(tempo if isinstance(tempo, (int, float)) else tempo[0])
-        return self._normalize_bpm(bpm)
+        try:
+            loader = MonoLoader(filename=wav_path, sampleRate=44100)
+            audio = loader()
+            rhythm = RhythmExtractor2013(method="multifeature")
+            bpm, _, _, _, _ = rhythm(audio)  # Essentia retorna (bpm, beats, conf, ...)
+            raw_bpm = float(bpm)
+        except Exception:
+            # --- 2) Fallback para Librosa (mantém compatibilidade) ---
+            import librosa
+            y, sr = librosa.load(wav_path, sr=None)
+            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+            raw_bpm = float(tempo if isinstance(tempo, (int, float)) else tempo[0])
+
+        return self._normalize_bpm(raw_bpm)
 
     def choose_target(self, bpm: float) -> int:
         """

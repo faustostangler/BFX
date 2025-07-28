@@ -10,7 +10,7 @@ from beatforge.converter import Converter
 from beatforge.track import TrackDTO
 from beatforge.utils import print_progress
 from beatforge.essentia_features import EssentiaFeatureExtractor
-from beatforge.persistence import save_track_list, load_all_tracks
+from beatforge.persistence import save_track_list, load_all_tracks, get_processed_urls
 
 import csv
 import sqlite3
@@ -140,7 +140,8 @@ class BeatForgeRunner:
         self,
         playlist_urls: List[str],
         process_all_entries: bool = True, 
-        max_tracks_per_playlist: int = config.MAX_TRACKS_PER_PLAYLIST
+        max_tracks_per_playlist: int = config.MAX_TRACKS_PER_PLAYLIST,
+        processed: List[str] = []
     ) -> List[TrackDTO]:
         """
         Executa o pipeline em múltiplas playlists:
@@ -163,11 +164,11 @@ class BeatForgeRunner:
 
         print('\n\nGetting Youtube Info')
         start_time = time.time()
-        for idx, url in enumerate(playlist_urls):
-            extra_info=[f"{url}"]
+        for idx, playlist_url in enumerate(playlist_urls):
+            extra_info=[f"{playlist_url}"]
             print_progress(idx, len(playlist_urls), start_time, extra_info, indent_level=0)
 
-            tracks = self.playlist_mgr.get_links(url, idx, max_tracks_per_playlist)
+            tracks = self.playlist_mgr.get_links(playlist_url, idx, max_tracks_per_playlist, processed)
 
             if process_all_entries:
                 selected_tracks = tracks
@@ -183,8 +184,12 @@ class BeatForgeRunner:
                         selected_tracks.append(t)
 
             for t in selected_tracks[:max_tracks_per_playlist]:
-                if t.url not in existing_tracks_by_url:
-                    all_tracks_by_url[t.url] = t  # sobrescreve se duplicado, mas ignora se já existe
+                # if t.url not in existing_tracks_by_url:
+                existing = existing_tracks_by_url.get(t.url)
+                # só pular quem já tiver os dois BPMs preenchidos
+                if existing and existing.bpm_librosa is not None and existing.bpm_essentia is not None:
+                    continue
+                all_tracks_by_url[t.url] = t  # sobrescreve se duplicado, mas ignora se já existe
 
         unique_tracks = list(all_tracks_by_url.values())
         results: List[TrackDTO] = []
@@ -226,7 +231,7 @@ class BeatForgeRunner:
                 bpm_librosa = self.analyzer.extract(wav_path)
                 track.bpm_librosa = bpm_librosa
 
-                target_bpm = self.analyzer.choose_target(track.bpm_essentia)
+                target_bpm = self.analyzer.choose_target(track.bpm)
                 track.target_bpm = target_bpm
 
                 self.converter.convert(track)
@@ -246,6 +251,8 @@ class BeatForgeRunner:
 if __name__ == "__main__":
     # 1) Carrega o dict { gênero: [urls...] }
     playlists_by_genre = load_playlists()
+    db_path = f"{config.FILENAME}.db"
+    processed = get_processed_urls(db_path)
 
     # 2) Para cada gênero, cria pasta e dispara o processamento
     start_time = time.time()
@@ -263,9 +270,10 @@ if __name__ == "__main__":
             converter=Converter(genre_dir)
         )
 
-        results = runner.run(urls, process_all_entries=False, max_tracks_per_playlist=config.MAX_TRACKS_PER_PLAYLIST)
+        results = runner.run(urls, process_all_entries=False, max_tracks_per_playlist=config.MAX_TRACKS_PER_PLAYLIST, processed=processed)
 
         extra_info = [f"{genre} {len(results)} musics"]
         print_progress(i, len(items), start_time, extra_info)
 
 print("done!")
+pass

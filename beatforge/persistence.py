@@ -2,8 +2,9 @@
 
 import sqlite3
 import json
-from typing import List, Dict
+from typing import List, Dict, Set
 from beatforge.track import TrackDTO
+
 
 # Name of the table used for storing track information in the database
 TABLE_NAME = "track_info"
@@ -174,3 +175,11 @@ def load_all_tracks(db_path: str) -> Dict[str, TrackDTO]:
                     data[k] = []
             result[data["url"]] = TrackDTO(**data)
         return result
+
+def get_processed_urls(db_path: str) -> Set[str]:
+    conn = sqlite3.connect(db_path)
+    cur  = conn.cursor()
+    cur.execute("SELECT url FROM track_info WHERE bpm_librosa IS NOT NULL OR bpm_essentia IS NOT NULL;")
+    urls = {row[0] for row in cur.fetchall()}
+    conn.close()
+    return urls

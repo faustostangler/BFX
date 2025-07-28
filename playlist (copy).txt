@@ -2,13 +2,6 @@ country
 https://www.youtube.com/watch?v=ndnakjtCAhE&list=PLZ0xKh1J9B2tiT4uJokqnBjb3Ze18UzRJ
 https://www.youtube.com/watch?v=RpTbHiEC8Bo&list=PLZ0xKh1J9B2sxQzF-bk6Ss7MKxubu22Ge&index=2
 https://www.youtube.com/watch?v=G4QOSNtvNyI&list=PLZ0xKh1J9B2twVhwbJk5729Q0mv-DBnIv
-https://www.youtube.com/watch?v=B9FzVhw8_bY&list=RDB9FzVhw8_bY&start_radio=1&rv=B9FzVhw8_bY
-https://www.youtube.com/watch?v=1tp4Vyltijw&list=RDEMft7Ow2fOZ_i4mIRkhzwYeg&start_radio=1&rv=jqTY8rGILfs
-https://www.youtube.com/watch?v=c0dvabcWVo0&list=RDEMft7Ow2fOZ_i4mIRkhzwYeg&index=3
-https://www.youtube.com/watch?v=zHamgwlQ1yo&list=RDEMft7Ow2fOZ_i4mIRkhzwYeg&index=19
-https://www.youtube.com/watch?v=UtACeMPZXBA&list=RDEMft7Ow2fOZ_i4mIRkhzwYeg&index=21
-https://www.youtube.com/watch?v=UQiMLhHjLxk&list=RDSRwrg0db_zY&index=5
-https://www.youtube.com/watch?v=1vrEljMfXYo&list=RDEM7zC3WdrHotKTm6mt1VYMjw&index=29
 
 copyfree sports
 https://www.youtube.com/watch?v=RzwiWVHT5JY&list=RDRzwiWVHT5JY&start_radio=1&rv=RzwiWVHT5JY
@@ -126,6 +119,16 @@ https://www.youtube.com/watch?v=tbNlMtqrYS0&list=RDtbNlMtqrYS0&start_radio=1
 https://www.youtube.com/watch?v=BqZ6sRHpWIk&list=RDEM7zC3WdrHotKTm6mt1VYMjw&index=7
 
 
+country
+https://www.youtube.com/watch?v=B9FzVhw8_bY&list=RDB9FzVhw8_bY&start_radio=1&rv=B9FzVhw8_bY
+https://www.youtube.com/watch?v=1tp4Vyltijw&list=RDEMft7Ow2fOZ_i4mIRkhzwYeg&start_radio=1&rv=jqTY8rGILfs
+https://www.youtube.com/watch?v=c0dvabcWVo0&list=RDEMft7Ow2fOZ_i4mIRkhzwYeg&index=3
+https://www.youtube.com/watch?v=zHamgwlQ1yo&list=RDEMft7Ow2fOZ_i4mIRkhzwYeg&index=19
+https://www.youtube.com/watch?v=UtACeMPZXBA&list=RDEMft7Ow2fOZ_i4mIRkhzwYeg&index=21
+https://www.youtube.com/watch?v=UQiMLhHjLxk&list=RDSRwrg0db_zY&index=5
+https://www.youtube.com/watch?v=1vrEljMfXYo&list=RDEM7zC3WdrHotKTm6mt1VYMjw&index=29
+
+
 blues rock
 https://www.youtube.com/watch?v=CyVuYAHiZb8&list=RDB9FzVhw8_bY&index=6
 https://www.youtube.com/watch?v=qdbrIrFxas0&list=RDEMb6tbiBMxqdDwhP0zz10P9Q&index=2
@@ -171,4 +174,5 @@ https://www.youtube.com/watch?v=ZbZSe6N_BXs&list=RDEM7zC3WdrHotKTm6mt1VYMjw&inde
 https://www.youtube.com/watch?v=hCuMWrfXG4E&list=RDEM7zC3WdrHotKTm6mt1VYMjw&index=12
 https://www.youtube.com/watch?v=pIgZ7gMze7A&list=RDEM7zC3WdrHotKTm6mt1VYMjw&index=22
 https://www.youtube.com/watch?v=djV11Xbc914&list=RDEM7zC3WdrHotKTm6mt1VYMjw&index=28
+
 

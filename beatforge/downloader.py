@@ -2,6 +2,7 @@
 
 import os
 import time
+from glob import glob
 from pathlib import Path
 import yt_dlp
 
@@ -29,6 +30,14 @@ class Downloader:
             TimeoutError: Se o arquivo .wav não for gerado dentro do tempo limite.
         """
         wav_path = os.path.join(self.output_dir, f"{safe_title}.wav")
+
+        # # ———— SKIP PELO MP3 ————
+        # # procura em qualquer subpasta (<output_dir>/<target_bpm>/) por safe_title_*bpm.mp3
+        # mp3_pattern = os.path.join(self.output_dir, "*", f"{safe_title}_*bpm.mp3")
+        # mp3_matches = glob(mp3_pattern)
+        # if mp3_matches:
+        #     # já existe conversão: retorna o wav_path (será ignorado pelo Converter que detecta o MP3)
+        #     return wav_path
 
         # Se o arquivo já existe, retorna direto
         if os.path.exists(wav_path):
