@@ -169,6 +169,8 @@ class BeatForgeRunner:
             print_progress(idx, len(playlist_urls), start_time, extra_info, indent_level=0)
 
             tracks = self.playlist_mgr.get_links(playlist_url, idx, max_tracks_per_playlist, processed)
+            if not tracks:
+                return []                     # nada a processar
 
             if process_all_entries:
                 selected_tracks = tracks

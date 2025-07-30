@@ -184,7 +184,7 @@ class PlaylistManager:
                     age_weight=age_weight, 
                 ))
 
-                extra_info = [f"{vid_url} ER={er:.2f} SCORE={score_log:.2f} V={vc:.0f} {title}"]
+                extra_info = [f"{vid_url} ER={er:.2f} SCORE={score_log:.2f} V={vc:.0f}"]
                 print_progress(i, len(unique_urls), start_time, extra_info, indent_level=1)
 
         return tracks
