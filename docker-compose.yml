@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  beatforge:
+    build: .
+    container_name: bfx_app
+    volumes:
+      - bfx_music:/app/music
+      - bfx_data:/app/data
+      - ./playlists.txt:/app/playlists.txt:ro
+    environment:
+      - OUTPUT_DIR=/app/music
+      - DATABASE_PATH=/app/data/playlist.db
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+    restart: unless-stopped
+
+volumes:
+  bfx_music:
+    name: bfx_music_storage
+  bfx_data:
+    name: bfx_metadata_storage

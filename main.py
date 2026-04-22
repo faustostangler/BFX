@@ -255,7 +255,7 @@ class BeatForgeRunner:
 if __name__ == "__main__":
     # 1) Carrega o dict { gênero: [urls...] }
     playlists_by_genre = load_playlists()
-    db_path = f"{config.FILENAME}.db"
+    db_path = config.DATABASE_PATH
     processed = get_processed_urls(db_path)
 
     # 2) Para cada gênero, cria pasta e dispara o processamento

@@ -1,11 +1,10 @@
 import os
 from pathlib import Path
 
-# Diretório de saída para arquivos WAV e MP3
-# OUTPUT_DIR = r"D:\Fausto Stangler\Documentos\Python\BFX\music"
-OUTPUT_DIR = r"D:\BFX\music"
-OUTPUT_DIR = str(Path.cwd() / "music")
-FILENAME = "playlist"
+# Injeção de dependência via ENV (Padrão 12-Factor)
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", str(Path.cwd() / "music"))
+FILENAME = os.getenv("FILENAME", "playlist")
+DATABASE_PATH = os.getenv("DATABASE_PATH", f"{FILENAME}.db")
 
 # Cria diretório se não existir
 os.makedirs(OUTPUT_DIR, exist_ok=True)
