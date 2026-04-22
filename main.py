@@ -139,6 +139,7 @@ class BeatForgeRunner:
     def run(
         self,
         playlist_urls: List[str],
+        genre: str,
         process_all_entries: bool = True, 
         max_tracks_per_playlist: int = config.MAX_TRACKS_PER_PLAYLIST,
         processed: List[str] = []
@@ -192,6 +193,7 @@ class BeatForgeRunner:
                 if existing and existing.bpm_librosa is not None and existing.bpm_essentia is not None:
                     continue
                 all_tracks_by_url[t.url] = t  # sobrescreve se duplicado, mas ignora se já existe
+                t.genre = genre
 
         unique_tracks = list(all_tracks_by_url.values())
         results: List[TrackDTO] = []
@@ -269,10 +271,10 @@ if __name__ == "__main__":
             playlist_mgr=PlaylistManager(),
             downloader=Downloader(genre_dir),
             analyzer=BPMAnalyzer(),
-            converter=Converter(genre_dir)
+            converter=Converter(config.OUTPUT_DIR)
         )
 
-        results = runner.run(urls, process_all_entries=False, max_tracks_per_playlist=config.MAX_TRACKS_PER_PLAYLIST, processed=processed)
+        results = runner.run(urls, genre=genre, process_all_entries=False, max_tracks_per_playlist=config.MAX_TRACKS_PER_PLAYLIST, processed=processed)
 
         extra_info = [f"{genre} {len(results)} musics"]
         print_progress(i, len(items), start_time, extra_info)

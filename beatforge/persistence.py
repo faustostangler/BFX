@@ -56,6 +56,7 @@ def ensure_schema(db_path: str):
                 title TEXT,
                 artist TEXT,
                 album TEXT,
+                genre TEXT,
                 safe_title TEXT,
 
                 bpm_essentia REAL,
@@ -91,6 +92,13 @@ def ensure_schema(db_path: str):
         """)
         conn.commit()
 
+        # —— Migração: Adiciona coluna genre se não existir ——
+        cursor.execute(f"PRAGMA table_info({TABLE_NAME})")
+        columns = [row[1] for row in cursor.fetchall()]
+        if "genre" not in columns:
+            cursor.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN genre TEXT")
+            conn.commit()
+
 def save_track_list(tracks: List[TrackDTO], db_path: str):
     """
     Saves a list of TrackDTO objects to the specified SQLite database.
@@ -121,7 +129,7 @@ def save_track_list(tracks: List[TrackDTO], db_path: str):
                 INSERT OR REPLACE INTO {TABLE_NAME} VALUES (
                     :url, :wav_path, :bpm_librosa, :target_bpm, :mp3_path,
                     :age_weight, :view_count, :like_count, :comment_count, :engagement_rate,
-                    :engagement_score_alt, :engagement_score_log, :title, :artist, :album, :safe_title,
+                    :engagement_score_alt, :engagement_score_log, :title, :artist, :album, :genre, :safe_title,
                     :bpm_essentia, :tempo_confidence, :beats_count, :onset_rate, :harmonic_percussive_ratio,
                     :key, :scale, :key_strength,
                     :timbral_mfcc_mean, :timbral_mfcc_std,

@@ -110,7 +110,9 @@ temp/
 *.lnk
 *.htm
 *.html
-.json
+*.json
+client_secrets.json
+*.ipynb
 
 # Compressed and archived files
 *.zip

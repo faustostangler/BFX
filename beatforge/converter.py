@@ -41,8 +41,8 @@ class Converter:
         :return: Caminho para o arquivo MP3 gerado.
         :raises subprocess.CalledProcessError: se o FFmpeg falhar.
         """
-        out_dir = self.base_dir / str(track.target_bpm)
-        out_dir.mkdir(exist_ok=True)
+        out_dir = self.base_dir / str(track.target_bpm) / (track.genre or "Unknown")
+        out_dir.mkdir(parents=True, exist_ok=True)
 
         out_mp3 = out_dir / f"{track.safe_title}_{track.target_bpm}bpm.mp3"
 

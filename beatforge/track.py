@@ -42,6 +42,7 @@ class TrackDTO:
     title: Optional[str]                   = field(default=None)
     artist: Optional[str]                  = field(default=None)
     album: Optional[str]                   = field(default=None)
+    genre: Optional[str]                   = field(default=None)
     safe_title: Optional[str]              = field(default=None)
 
     # —— Atributos Essentia (achatados) ——
