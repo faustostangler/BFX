@@ -1,0 +1,40 @@
+# Reversa — Configuração do Projeto
+# Este arquivo é gerenciado pelo instalador. Para customizações, edite config.user.toml
+
+[project]
+name = "BFX"
+version = "1.0.0"
+
+[user]
+name = "DJ"
+chat_language = "en-us"
+doc_language = "en-us"
+
+[output]
+folder = "_reversa_sdd"
+
+[agents]
+installed = [
+  "reversa",
+  "reversa-scout",
+  "reversa-archaeologist",
+  "reversa-detective",
+  "reversa-architect",
+  "reversa-writer",
+  "reversa-reviewer",
+  "reversa-visor",
+  "reversa-data-master",
+  "reversa-design-system",
+  "reversa-agents-help",
+  "reversa-reconstructor"
+]
+
+[engines]
+installed = [
+  "gemini-cli",
+  "antigravity"
+]
+
+[analysis]
+answer_mode = "chat"
+doc_level = "completo"

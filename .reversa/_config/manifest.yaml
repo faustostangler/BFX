@@ -1,0 +1,22 @@
+installation:
+  version: 1.2.14
+  installDate: 2026-04-30T19:00:39.901Z
+  lastUpdated: 2026-04-30T19:00:39.901Z
+
+engines:
+  - gemini-cli
+  - antigravity
+
+agents:
+  - reversa
+  - reversa-scout
+  - reversa-archaeologist
+  - reversa-detective
+  - reversa-architect
+  - reversa-writer
+  - reversa-reviewer
+  - reversa-visor
+  - reversa-data-master
+  - reversa-design-system
+  - reversa-agents-help
+  - reversa-reconstructor

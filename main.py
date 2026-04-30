@@ -7,6 +7,7 @@ from beatforge.playlist import PlaylistManager
 from beatforge.downloader import Downloader
 from beatforge.bpm import BPMAnalyzer
 from beatforge.converter import Converter
+from beatforge.sampler import Sampler
 from beatforge.track import TrackDTO
 from beatforge.utils import print_progress
 from beatforge.essentia_features import EssentiaFeatureExtractor
@@ -33,12 +34,14 @@ class BeatForgeRunner:
         playlist_mgr: PlaylistManager,
         downloader: Downloader,
         analyzer: BPMAnalyzer,
-        converter: Converter
+        converter: Converter,
+        sampler: Sampler
     ) -> None:
         self.playlist_mgr = playlist_mgr
         self.downloader   = downloader
         self.analyzer     = analyzer
         self.converter    = converter
+        self.sampler      = sampler
         self.feature_extractor = EssentiaFeatureExtractor()
 
     @staticmethod
@@ -239,6 +242,10 @@ class BeatForgeRunner:
                 track.target_bpm = target_bpm
 
                 self.converter.convert(track)
+                
+                # Gera o sample de 15s (30-45s)
+                if track.mp3_path:
+                    self.sampler.create_sample(track.mp3_path)
 
                 results.append(track)
 
@@ -271,7 +278,8 @@ if __name__ == "__main__":
             playlist_mgr=PlaylistManager(),
             downloader=Downloader(genre_dir),
             analyzer=BPMAnalyzer(),
-            converter=Converter(config.OUTPUT_DIR)
+            converter=Converter(config.OUTPUT_DIR),
+            sampler=Sampler()
         )
 
         results = runner.run(urls, genre=genre, process_all_entries=False, max_tracks_per_playlist=config.MAX_TRACKS_PER_PLAYLIST, processed=processed)
