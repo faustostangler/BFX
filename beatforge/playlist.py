@@ -25,15 +25,25 @@ class PlaylistManager:
     além de suportar persistência em CSV e SQLite.
     """
 
+    class _QuietLogger:
+        def debug(self, msg): pass
+        def warning(self, msg): pass
+        def error(self, msg): pass
+
     def __init__(self) -> None:
+        logger = self._QuietLogger()
         self._ydl_opts_flat = {
             'quiet': True,
+            'no_warnings': True,
+            'logger': logger,
             'extract_flat': True,
             'force_generic_extractor': False,
             'yes_playlist': True,
         }
         self._ydl_opts_full = {
             'quiet': True,
+            'no_warnings': True,
+            'logger': logger,
             'force_generic_extractor': False,
         }
 
@@ -184,7 +194,9 @@ class PlaylistManager:
                     age_weight=age_weight, 
                 ))
 
-                extra_info = [f"{vid_url} ER={er:.2f} SCORE={score_log:.2f} V={vc:.0f}"]
+                # Extrai apenas o ID do vídeo para o log
+                vid_id = vid_url.split('v=')[-1].split('&')[0] if 'v=' in vid_url else vid_url[-11:]
+                extra_info = [f"{vid_id[:11]} ER={er:.2f} SCORE={score_log:.2f} V={vc:.0f}"]
                 print_progress(i, len(unique_urls), start_time, extra_info, indent_level=1)
 
         return tracks

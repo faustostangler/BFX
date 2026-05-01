@@ -4,12 +4,13 @@ services:
     build: .
     container_name: bfx_app
     volumes:
-      - bfx_music:/app/music
-      - bfx_data:/app/data
+      - ./music:/app/music
+      - ./data:/app/data
       - ./playlists.txt:/app/playlists.txt:ro
     environment:
       - OUTPUT_DIR=/app/music
       - DATABASE_PATH=/app/data/playlist.db
+      - TF_CPP_MIN_LOG_LEVEL=3
     deploy:
       resources:
         limits:
@@ -17,8 +18,3 @@ services:
           memory: 4G
     restart: unless-stopped
 
-volumes:
-  bfx_music:
-    name: bfx_music_storage
-  bfx_data:
-    name: bfx_metadata_storage

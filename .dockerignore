@@ -1,0 +1,25 @@
+# Ignorar TUDO que seja música ou dados pesados
+[Mm]usic*/
+Music*/
+downloads/
+essentia/
+
+# Arquivos de dados e histórico (vi vários CSVs e JSONs grandes)
+*.db
+*.csv
+*.json
+*.html
+*.ipynb
+*.wav
+*.mp3
+
+# Sistema e Caches
+desktop.ini
+__pycache__/
+*.pyc
+.pytest_cache/
+.reversa/
+_reversa_sdd/
+.git/
+.venv/
+.uv/

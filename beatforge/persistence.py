@@ -185,6 +185,7 @@ def load_all_tracks(db_path: str) -> Dict[str, TrackDTO]:
         return result
 
 def get_processed_urls(db_path: str) -> Set[str]:
+    ensure_schema(db_path)
     conn = sqlite3.connect(db_path)
     cur  = conn.cursor()
     cur.execute("SELECT url FROM track_info WHERE bpm_librosa IS NOT NULL OR bpm_essentia IS NOT NULL;")

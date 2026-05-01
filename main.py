@@ -1,5 +1,15 @@
 # beatforge/bfx.py
 
+import os
+# Silenciar logs do TensorFlow e Essentia antes de importar o resto
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+try:
+    import essentia
+    essentia.log.infoActive = False
+    essentia.log.warningActive = False
+except ImportError:
+    pass
+
 from beatforge.file_utils import load_playlists
 from typing import List, Dict
 from beatforge import config
@@ -169,7 +179,9 @@ class BeatForgeRunner:
         print('\n\nGetting Youtube Info')
         start_time = time.time()
         for idx, playlist_url in enumerate(playlist_urls):
-            extra_info=[f"{playlist_url}"]
+            # Extrai ID da playlist ou do vídeo para o log
+            vid_id = playlist_url.split('v=')[-1].split('&')[0] if 'v=' in playlist_url else playlist_url.split('list=')[-1].split('&')[0]
+            extra_info=[f"{vid_id[:11]}"]
             print_progress(idx, len(playlist_urls), start_time, extra_info, indent_level=0)
 
             tracks = self.playlist_mgr.get_links(playlist_url, idx, max_tracks_per_playlist, processed)
@@ -249,7 +261,9 @@ class BeatForgeRunner:
 
                 results.append(track)
 
-                extra_info=[f"{track.bpm_essentia:.2f} → {target_bpm} bpm {track.view_count} {track.engagement_rate:.2f} {track.safe_title}"]
+                # Extrai apenas o ID do vídeo para o log
+                vid_id = track.url.split('v=')[-1].split('&')[0] if 'v=' in track.url else track.url[-11:]
+                extra_info=[f"{track.bpm_essentia:.2f} → {target_bpm} bpm {track.view_count} {track.engagement_rate:.2f} {vid_id[:11]} {track.safe_title}"]
                 print_progress(i, len(unique_tracks), start_time, extra_info)
 
             except Exception as e:
@@ -271,12 +285,12 @@ if __name__ == "__main__":
     for i, (genre, urls) in enumerate(items):
         print(f"\n=== Processando gênero: {genre} ({len(urls)} playlists) ===")
 
-        genre_dir = os.path.join(config.OUTPUT_DIR, genre)
-        os.makedirs(genre_dir, exist_ok=True)
+        # Pasta temporária para os downloads de áudio bruto (.wav)
+        temp_dl_dir = os.path.join(config.OUTPUT_DIR, "_downloads")
 
         runner = BeatForgeRunner(
             playlist_mgr=PlaylistManager(),
-            downloader=Downloader(genre_dir),
+            downloader=Downloader(temp_dl_dir),
             analyzer=BPMAnalyzer(),
             converter=Converter(config.OUTPUT_DIR),
             sampler=Sampler()

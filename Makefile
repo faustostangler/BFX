@@ -33,7 +33,7 @@ logs:
 	$(DOCKER_COMPOSE) logs -f
 
 build:
-	$(DOCKER_COMPOSE) build --no-cache
+	$(DOCKER_COMPOSE) build
 
 shell:
 	$(DOCKER_COMPOSE) exec beatforge /bin/bash
