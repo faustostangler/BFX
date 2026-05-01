@@ -268,6 +268,7 @@ class BeatForgeRunner:
                     self.retargeter.retarget(
                         mp3_path=Path(track.mp3_path),
                         source_bpm=track.target_bpm,
+                        genre=track.genre or "Unknown"
                     )
 
                 results.append(track)
@@ -306,7 +307,7 @@ if __name__ == "__main__":
             analyzer=BPMAnalyzer(),
             converter=Converter(config.OUTPUT_DIR),
             sampler=sampler,
-            retargeter=Retargeter(config.GLOBAL_TARGET_BPM, sampler),
+            retargeter=Retargeter(Path(config.OUTPUT_DIR), config.GLOBAL_TARGET_BPM, sampler),
         )
 
         results = runner.run(urls, genre=genre, process_all_entries=False, max_tracks_per_playlist=config.MAX_TRACKS_PER_PLAYLIST, processed=processed)

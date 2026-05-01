@@ -34,14 +34,14 @@ def _parse_source_bpm(filename: str) -> int | None:
 
 def backfill(music_dir: Path, global_target: int, *, dry_run: bool = False) -> None:
     sampler = Sampler()
-    retargeter = Retargeter(global_target, sampler)
+    retargeter = Retargeter(music_dir, global_target, sampler)
 
-    # Collect all non-sample MP3s, excluding _to* subfolders
+    # Collect all non-sample MP3s, excluding _{target} subfolders
     candidates = [
         mp3
         for mp3 in music_dir.rglob("*.mp3")
         if not mp3.name.endswith("_sample.mp3")
-        and f"_to{global_target}" not in str(mp3)
+        and f"_{global_target}" not in mp3.parts
     ]
 
     skipped = 0
@@ -65,15 +65,18 @@ def backfill(music_dir: Path, global_target: int, *, dry_run: bool = False) -> N
         if source_bpm == global_target:
             skipped += 1
             continue
+        
+        # Genre is the name of the parent directory
+        genre = mp3.parent.name
 
         if dry_run:
             mult = round(global_target / source_bpm, 4)
-            print(f"  [DRY] {source_bpm}→{global_target} (x{mult}) {mp3.name}")
+            print(f"  [DRY] {source_bpm}→{global_target} (x{mult}) {mp3.name} [Genre: {genre}]")
             processed += 1
             continue
 
         try:
-            result = retargeter.retarget(mp3, source_bpm)
+            result = retargeter.retarget(mp3, source_bpm, genre=genre)
             if result:
                 processed += 1
                 elapsed = time.time() - start

@@ -15,16 +15,18 @@ class Retargeter:
     producing a tempo-shifted copy at a single global BPM.
     """
 
-    def __init__(self, global_target_bpm: int, sampler: Sampler) -> None:
+    def __init__(self, base_dir: Path, global_target_bpm: int, sampler: Sampler) -> None:
+        self.base_dir = base_dir
         self.global_target_bpm = global_target_bpm
         self.sampler = sampler
 
-    def retarget(self, mp3_path: Path, source_bpm: int) -> Optional[Path]:
+    def retarget(self, mp3_path: Path, source_bpm: int, genre: str = "Unknown") -> Optional[Path]:
         """Produce a tempo-shifted MP3 + sample at the global target BPM.
 
         Args:
             mp3_path: Absolute path to the source MP3.
             source_bpm: The BPM the source was encoded at (bucket target).
+            genre: The genre for folder organization.
 
         Returns:
             Path to the retargeted MP3, or None if already at target.
@@ -32,7 +34,8 @@ class Retargeter:
         if source_bpm == self.global_target_bpm:
             return None
 
-        out_dir = mp3_path.parent / f"_to{self.global_target_bpm}"
+        # Output folder: base_dir / _160 / genre
+        out_dir = self.base_dir / f"_{self.global_target_bpm}" / genre
         out_dir.mkdir(parents=True, exist_ok=True)
 
         out_name = self._build_output_name(mp3_path.stem, source_bpm)
