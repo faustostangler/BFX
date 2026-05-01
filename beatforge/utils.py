@@ -38,7 +38,7 @@ def print_progress(index=0, size=1, start_time=None, extra_info=None, indent_lev
 
         progress = (
             f"{pct:.2%} ({completed}/{size}), {avg:.4f}s/item, "
-            f"{fmt(total)} = {fmt(elapsed)} + {fmt(remain)}"
+            f"{fmt(total)}={fmt(elapsed)}+{fmt(remain)}"
         )
         indent = indent_unit * (indent_level + 1)
         extra = " ".join(map(str, extra_info))

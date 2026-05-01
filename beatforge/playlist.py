@@ -196,7 +196,7 @@ class PlaylistManager:
 
                 # Extrai apenas o ID do vídeo para o log
                 vid_id = vid_url.split('v=')[-1].split('&')[0] if 'v=' in vid_url else vid_url[-11:]
-                extra_info = [f"{vid_id[:11]} ER={er:.2f} SCORE={score_log:.2f} V={vc:.0f}"]
+                extra_info = [f"https://youtu.be/{vid_id[:11]} ER={er:.2f} SCORE={score_log:.2f} V={vc:.2f}"]
                 print_progress(i, len(unique_urls), start_time, extra_info, indent_level=1)
 
         return tracks

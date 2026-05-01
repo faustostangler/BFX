@@ -181,7 +181,7 @@ class BeatForgeRunner:
         for idx, playlist_url in enumerate(playlist_urls):
             # Extrai ID da playlist ou do vídeo para o log
             vid_id = playlist_url.split('v=')[-1].split('&')[0] if 'v=' in playlist_url else playlist_url.split('list=')[-1].split('&')[0]
-            extra_info=[f"{vid_id[:11]}"]
+            extra_info=[f"https://youtu.be/{vid_id[:11]}"]
             print_progress(idx, len(playlist_urls), start_time, extra_info, indent_level=0)
 
             tracks = self.playlist_mgr.get_links(playlist_url, idx, max_tracks_per_playlist, processed)
@@ -263,7 +263,7 @@ class BeatForgeRunner:
 
                 # Extrai apenas o ID do vídeo para o log
                 vid_id = track.url.split('v=')[-1].split('&')[0] if 'v=' in track.url else track.url[-11:]
-                extra_info=[f"{track.bpm_essentia:.2f} → {target_bpm} bpm {track.view_count} {track.engagement_rate:.2f} {vid_id[:11]} {track.safe_title}"]
+                extra_info=[f"{track.bpm_essentia:.2f}→{target_bpm}bpm V={track.view_count:.2f} ER={track.engagement_rate:.2f} https://youtu.be/{vid_id[:11]} {track.safe_title}"]
                 print_progress(i, len(unique_tracks), start_time, extra_info)
 
             except Exception as e:

@@ -48,7 +48,7 @@ class Downloader:
 
         # Configuração do yt-dlp
         ydl_opts = {
-            'format': 'bestaudio[abr<=128]',
+            'format': 'bestaudio/best',
             'outtmpl': os.path.join(self.output_dir, f"{safe_title}.%(ext)s"),
             'nopart': True,
             'continuedl': False,

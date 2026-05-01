@@ -6,7 +6,7 @@ services:
     volumes:
       - ./music:/app/music
       - ./data:/app/data
-      - ./playlists.txt:/app/playlists.txt:ro
+      - ./playlist.txt:/app/playlist.txt:ro
     environment:
       - OUTPUT_DIR=/app/music
       - DATABASE_PATH=/app/data/playlist.db
@@ -16,5 +16,5 @@ services:
         limits:
           cpus: '2.0'
           memory: 4G
-    restart: unless-stopped
+    restart: "no"
 
