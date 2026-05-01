@@ -34,7 +34,7 @@ def print_progress(index=0, size=1, start_time=None, extra_info=None, indent_lev
         def fmt(seconds):
             h, r = divmod(int(seconds), 3600)
             m, s = divmod(r, 60)
-            return f"{h}h {m:02}m {s:02}s"
+            return f"{h}h{m:02}m{s:02}s"
 
         progress = (
             f"{pct:.2%} ({completed}/{size}), {avg:.4f}s/item, "
