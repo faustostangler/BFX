@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from beatforge.sampler import Sampler
-from beatforge.normalizer import Normalizer
 
 
 class Retargeter:
@@ -16,11 +15,10 @@ class Retargeter:
     producing a tempo-shifted copy at a single global BPM.
     """
 
-    def __init__(self, base_dir: Path, global_target_bpm: int, sampler: Sampler, normalizer: Normalizer) -> None:
+    def __init__(self, base_dir: Path, global_target_bpm: int, sampler: Sampler) -> None:
         self.base_dir = base_dir
         self.global_target_bpm = global_target_bpm
         self.sampler = sampler
-        self.normalizer = normalizer
 
     def retarget(self, mp3_path: Path, source_bpm: int, genre: str = "Unknown") -> Optional[Path]:
         """Produce a tempo-shifted MP3 + sample at the global target BPM.
@@ -50,10 +48,8 @@ class Retargeter:
         multiplier = round(self.global_target_bpm / source_bpm, 4)
         self._run_ffmpeg(mp3_path, out_mp3, multiplier)
 
-        # Normalize the retargeted MP3
-        self.normalizer.normalize(out_mp3)
-
-        # Generate sample from the retargeted MP3
+        # Sample inherits normalized loudness from source MP3 (atempo preserves amplitude)
+        # No re-normalization needed
         self.sampler.create_sample(out_mp3)
 
         return out_mp3
@@ -63,11 +59,16 @@ class Retargeter:
     # ------------------------------------------------------------------
 
     def _build_output_name(self, stem: str, source_bpm: int) -> str:
-        """Append the target BPM suffix to the original stem.
+        """Replace the source BPM suffix with the compound BPM format.
 
-        'Queen - Champions_100bpm' → 'Queen - Champions_100bpm_160_bpm'
+        'Queen - Champions_100bpm' → 'Queen - Champions100_160 bpm'
         """
-        return f"{stem}_{self.global_target_bpm}_bpm"
+        suffix = f"_{source_bpm}bpm"
+        if stem.endswith(suffix):
+            base = stem[: -len(suffix)]
+        else:
+            base = stem
+        return f"{base}{source_bpm}_{self.global_target_bpm} bpm"
 
     @staticmethod
     def _run_ffmpeg(input_path: Path, output_path: Path, multiplier: float) -> None:

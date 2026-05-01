@@ -11,9 +11,10 @@ help:
 	@echo "Comandos disponíveis:"
 	@echo "  make up          - Inicia o container em background"
 	@echo "  make down        - Para os containers e remove a rede"
-	@echo "  make restart     - Reinicia os containers"
+	@echo "  make restart     - Reinicia os containers (sem rebuild)"
+	@echo "  make rebuild     - Reconstrói a imagem e reinicia (use se mudar o código)"
 	@echo "  make logs        - Visualiza os logs em tempo real"
-	@echo "  make build       - Reconstrói a imagem Docker"
+	@echo "  make build       - Apenas reconstrói a imagem Docker"
 	@echo "  make shell       - Abre um terminal dentro do container"
 	@echo "  make local-run   - Roda o pipeline localmente (usando uv)"
 	@echo "  make clean       - Remove arquivos temporários e caches"
@@ -28,6 +29,9 @@ down:
 
 restart:
 	$(DOCKER_COMPOSE) restart
+
+rebuild:
+	$(DOCKER_COMPOSE) up -d --build
 
 logs:
 	$(DOCKER_COMPOSE) logs -f

@@ -205,6 +205,6 @@ class PlaylistManager:
         all_tracks = self.fetch_entries(playlist_url, idx, max_tracks_per_playlist, processed)
 
         # self.save_tracks_csv(all_tracks)
-        save_track_list(all_tracks, f"{config.FILENAME}.db")
+        save_track_list(all_tracks, config.DATABASE_PATH)
 
         return all_tracks[:max_tracks_per_playlist] if max_tracks_per_playlist is not None else all_tracks

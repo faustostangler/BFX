@@ -133,7 +133,7 @@ class BeatForgeRunner:
         return load_all_tracks(db_path)
 
     def save_tracks(self, tracks: List[TrackDTO]) -> None:
-        save_track_list(tracks, f"{config.FILENAME}.db")
+        save_track_list(tracks, config.DATABASE_PATH)
 
     def _select_curated_tracks(self, tracks: List[TrackDTO], limit: int) -> Tuple[List[TrackDTO], List[TrackDTO], List[TrackDTO]]:
         """
@@ -324,7 +324,7 @@ if __name__ == "__main__":
             analyzer=BPMAnalyzer(),
             converter=Converter(config.OUTPUT_DIR),
             sampler=sampler,
-            retargeter=Retargeter(Path(config.OUTPUT_DIR), config.GLOBAL_TARGET_BPM, sampler, normalizer),
+            retargeter=Retargeter(Path(config.OUTPUT_DIR), config.GLOBAL_TARGET_BPM, sampler),
             normalizer=normalizer,
         )
 
