@@ -36,7 +36,7 @@ def ensure_schema(db_path: str):
     Raises:
         sqlite3.Error: If an error occurs while connecting to the database or executing SQL.
     """
-    with sqlite3.connect(db_path) as conn:
+    with sqlite3.connect(db_path, timeout=15.0) as conn:
         cursor = conn.cursor()
         cursor.execute(f"""
             CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
@@ -113,7 +113,7 @@ def save_track_list(tracks: List[TrackDTO], db_path: str):
     Raises:
         sqlite3.DatabaseError: If a database error occurs during the operation.
     """
-    with sqlite3.connect(db_path) as conn:
+    with sqlite3.connect(db_path, timeout=15.0) as conn:
         cursor = conn.cursor()
         for t in tracks:
             params = {
@@ -162,7 +162,7 @@ def load_all_tracks(db_path: str) -> Dict[str, TrackDTO]:
     """
     ensure_schema(db_path)
 
-    with sqlite3.connect(db_path) as conn:
+    with sqlite3.connect(db_path, timeout=15.0) as conn:
         cursor = conn.cursor()
         cursor.execute(f"SELECT * FROM {TABLE_NAME}")
         columns = [desc[0] for desc in cursor.description]
@@ -186,7 +186,7 @@ def load_all_tracks(db_path: str) -> Dict[str, TrackDTO]:
 
 def get_processed_urls(db_path: str) -> Set[str]:
     ensure_schema(db_path)
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=15.0)
     cur  = conn.cursor()
     cur.execute("SELECT url FROM track_info WHERE bpm_librosa IS NOT NULL OR bpm_essentia IS NOT NULL;")
     urls = {row[0] for row in cur.fetchall()}

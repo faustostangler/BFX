@@ -32,6 +32,8 @@ import json
 import os
 import time
 from typing import Tuple
+import concurrent.futures
+import threading
 
 class BeatForgeRunner:
     """
@@ -185,16 +187,12 @@ class BeatForgeRunner:
 
         print('\n\nGetting Youtube Info')
         start_time = time.time()
-        for idx, playlist_url in enumerate(playlist_urls):
-            # Extrai ID da playlist ou do vídeo para o log
-            vid_id = playlist_url.split('v=')[-1].split('&')[0] if 'v=' in playlist_url else playlist_url.split('list=')[-1].split('&')[0]
-            extra_info=[f"https://youtu.be/{vid_id[:11]}"]
-            print_progress(idx, len(playlist_urls), start_time, extra_info, indent_level=0)
-
-            tracks = self.playlist_mgr.get_links(playlist_url, idx, max_tracks_per_playlist, processed)
+        print('\n\nGetting Youtube Info (Multithreaded Playlists)')
+        def fetch_playlist_urls(idx: int, playlist_url: str):
+            tracks = self.playlist_mgr.get_links(playlist_url, idx, max_tracks_per_playlist, list(processed))
             if not tracks:
-                return []                     # nada a processar
-
+                return []                     # se falhar, retorna vazio para não quebrar as outras
+            
             if process_all_entries:
                 selected_tracks = tracks
             else:
@@ -208,22 +206,34 @@ class BeatForgeRunner:
                         seen.add(t.url)
                         selected_tracks.append(t)
 
-            for t in selected_tracks[:max_tracks_per_playlist]:
-                # if t.url not in existing_tracks_by_url:
-                existing = existing_tracks_by_url.get(t.url)
-                # só pular quem já tiver os dois BPMs preenchidos
-                if existing and existing.bpm_librosa is not None and existing.bpm_essentia is not None:
-                    continue
-                all_tracks_by_url[t.url] = t  # sobrescreve se duplicado, mas ignora se já existe
-                t.genre = genre
+            return selected_tracks[:max_tracks_per_playlist]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
+            playlist_futures = [executor.submit(fetch_playlist_urls, idx, url) for idx, url in enumerate(playlist_urls)]
+            
+            for future in concurrent.futures.as_completed(playlist_futures):
+                selected_tracks = future.result()
+                for t in selected_tracks:
+                    existing = existing_tracks_by_url.get(t.url)
+                    # só pular quem já tiver os dois BPMs preenchidos
+                    if existing and existing.bpm_librosa is not None and existing.bpm_essentia is not None:
+                        continue
+                    all_tracks_by_url[t.url] = t  # sobrescreve se duplicado, mas ignora se já existe
+                    t.genre = genre
 
         unique_tracks = list(all_tracks_by_url.values())
         results: List[TrackDTO] = []
         self.save_tracks(unique_tracks)
 
-        print('\n\nDownloading Youtube Songs')
+        print('\n\nDownloading Youtube Songs (Multithreaded)')
         start_time = time.time()
-        for i, track in enumerate(unique_tracks):
+        
+        print_lock = threading.Lock()
+        completed_count = 0
+        total_count = len(unique_tracks)
+
+        def process_task(track: TrackDTO):
+            nonlocal completed_count
             try:
                 wav_path = self.downloader.download_to_wav(track.url, track.safe_title)
                 track.wav_path = wav_path
@@ -285,13 +295,25 @@ class BeatForgeRunner:
 
                 results.append(track)
 
+                # Extrai o nome da thread (ex: ThreadPoolExecutor-0_1 -> W1)
+                thread_name = threading.current_thread().name
+                worker_id = thread_name.split('_')[-1] if '_' in thread_name else thread_name
+                
                 # Extrai apenas o ID do vídeo para o log
                 vid_id = track.url.split('v=')[-1].split('&')[0] if 'v=' in track.url else track.url[-11:]
-                extra_info=[f"{track.bpm_essentia:.2f}→{target_bpm}bpm V={track.view_count:.2f} ER={track.engagement_rate:.2f} https://youtu.be/{vid_id[:11]}"]
-                print_progress(i, len(unique_tracks), start_time, extra_info)
+                extra_info=[f"[W{worker_id}] {track.bpm_essentia:.2f}→{target_bpm}bpm V={track.view_count:.2f} ER={track.engagement_rate:.2f} https://youtu.be/{vid_id[:11]}"]
+                with print_lock:
+                    print_progress(completed_count, total_count, start_time, extra_info)
+                    completed_count += 1
 
             except Exception as e:
                 print(f"✗ Erro em {track.safe_title}: {e}")
+                with print_lock:
+                    completed_count += 1
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
+            futures = [executor.submit(process_task, track) for track in unique_tracks]
+            concurrent.futures.wait(futures)
 
         self.save_tracks(unique_tracks)
 

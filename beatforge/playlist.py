@@ -8,6 +8,8 @@ import time
 import math
 from datetime import datetime
 import json
+import concurrent.futures
+import threading
 
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from collections import OrderedDict
@@ -151,25 +153,29 @@ class PlaylistManager:
 
         unique_urls = list(OrderedDict.fromkeys(urls))
 
-        tracks: List[TrackDTO] = []
-        with yt_dlp.YoutubeDL(self._ydl_opts_full) as ydl_full:
-            start_time = time.time()
-            for i, vid_url in enumerate(unique_urls):
-                try:
-                    meta = ydl_full.extract_info(vid_url, download=False)
-                except Exception:
-                    continue
+        results_array = [None] * len(unique_urls)
+        start_time = time.time()
+        
+        print_lock = threading.Lock()
+        completed_count = 0
+        total_count = len(unique_urls)
 
+        def fetch_task(idx: int, vid_url: str):
+            nonlocal completed_count
+            try:
+                # yt_dlp is mostly thread-safe, but instantiating it per thread is the safest approach
+                with yt_dlp.YoutubeDL(self._ydl_opts_full) as ydl_full:
+                    meta = ydl_full.extract_info(vid_url, download=False)
+                    
                 ts = meta.get("timestamp") or 0
                 age_days = 0
                 if ts:
                     age_days = (datetime.now() - datetime.fromtimestamp(ts)).days
-                    age_weight = math.log(age_days + 2) # +2 evita o log(0) e suaviza vídeos novíssimos
+                    age_weight = math.log(age_days + 2)
 
-
-                vc = (meta.get('view_count') or 0)/age_weight
-                lc = (meta.get('like_count') or 0)/age_weight
-                cc = (meta.get('comment_count') or 0)/age_weight
+                vc = (meta.get('view_count') or 0)/age_weight if age_weight else 0
+                lc = (meta.get('like_count') or 0)/age_weight if age_weight else 0
+                cc = (meta.get('comment_count') or 0)/age_weight if age_weight else 0
                 er, score_alt, score_log = self.compute_engagement_scores(vc, lc, cc)
 
                 title = meta.get('title') or meta.get('fulltitle') or meta.get('alt_title') or meta.get('track') or ''
@@ -179,7 +185,7 @@ class PlaylistManager:
                 album = meta.get('album') or ''
                 safe_title = self.make_safe_title(title, artist, album)
 
-                tracks.append(TrackDTO(
+                dto = TrackDTO(
                     url=vid_url,
                     view_count=vc,
                     like_count=lc,
@@ -192,13 +198,28 @@ class PlaylistManager:
                     album=album,
                     safe_title=safe_title, 
                     age_weight=age_weight, 
-                ))
+                )
 
-                # Extrai apenas o ID do vídeo para o log
+                thread_name = threading.current_thread().name
+                worker_id = thread_name.split('_')[-1] if '_' in thread_name else thread_name
                 vid_id = vid_url.split('v=')[-1].split('&')[0] if 'v=' in vid_url else vid_url[-11:]
-                extra_info = [f"https://youtu.be/{vid_id[:11]} ER={er:.2f} SCORE={score_log:.2f} V={vc:.2f}"]
-                print_progress(i, len(unique_urls), start_time, extra_info, indent_level=1)
+                extra_info = [f"[W{worker_id}] https://youtu.be/{vid_id[:11]} ER={er:.2f} SCORE={score_log:.2f} V={vc:.2f}"]
 
+                with print_lock:
+                    print_progress(completed_count, total_count, start_time, extra_info, indent_level=1)
+                    completed_count += 1
+
+                results_array[idx] = dto
+
+            except Exception:
+                with print_lock:
+                    completed_count += 1
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
+            futures = [executor.submit(fetch_task, i, url) for i, url in enumerate(unique_urls)]
+            concurrent.futures.wait(futures)
+
+        tracks = [t for t in results_array if t is not None]
         return tracks
 
     def get_links(self, playlist_url: str, idx: int, max_tracks_per_playlist: Optional[int] = None, processed: list[str] = []) -> List[TrackDTO]:
