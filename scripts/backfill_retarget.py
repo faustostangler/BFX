@@ -66,9 +66,28 @@ def backfill(music_dir: Path, global_target: int, *, dry_run: bool = False) -> N
             skipped += 1
             continue
         
-        # Genre is the name of the parent directory
-        genre = mp3.parent.name
-
+        # Determine genre by looking at path parts relative to music_dir
+        # We expect a structure like music_dir/{bpm}/{genre}/file.mp3
+        # or music_dir/{genre}/{bpm}/file.mp3
+        relative_parts = mp3.relative_to(music_dir).parts[:-1] # Exclude filename
+        
+        genre = "Unknown"
+        bpm_str = str(source_bpm)
+        
+        if len(relative_parts) >= 2:
+            # If we have at least two parts, one is likely BPM and the other Genre
+            if relative_parts[0] == bpm_str:
+                genre = relative_parts[1]
+            elif relative_parts[1] == bpm_str:
+                genre = relative_parts[0]
+            else:
+                # Fallback to the immediate parent if neither match exactly
+                genre = mp3.parent.name
+        elif len(relative_parts) == 1:
+            # If only one part, it's either genre or bpm
+            if relative_parts[0] != bpm_str:
+                genre = relative_parts[0]
+        
         if dry_run:
             mult = round(global_target / source_bpm, 4)
             print(f"  [DRY] {source_bpm}→{global_target} (x{mult}) {mp3.name} [Genre: {genre}]")
@@ -80,7 +99,7 @@ def backfill(music_dir: Path, global_target: int, *, dry_run: bool = False) -> N
             if result:
                 processed += 1
                 elapsed = time.time() - start
-                print(f"  ✓ {source_bpm}→{global_target} bpm  {mp3.name}  ({elapsed:.1f}s)")
+                print(f"  ✓ {source_bpm}→{global_target} bpm  {mp3.name} [Genre: {genre}] ({elapsed:.1f}s)")
             else:
                 skipped += 1
         except Exception as e:
