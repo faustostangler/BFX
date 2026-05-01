@@ -58,15 +58,11 @@ class Retargeter:
     # ------------------------------------------------------------------
 
     def _build_output_name(self, stem: str, source_bpm: int) -> str:
-        """Replace the source BPM suffix with the global target BPM.
+        """Append the target BPM suffix to the original stem.
 
-        'Queen - Champions_100bpm' → 'Queen - Champions_160bpm'
+        'Queen - Champions_100bpm' → 'Queen - Champions_100bpm_160_bpm'
         """
-        suffix = f"_{source_bpm}bpm"
-        if stem.endswith(suffix):
-            return stem[: -len(suffix)] + f"_{self.global_target_bpm}bpm"
-        # Fallback: append target BPM
-        return f"{stem}_{self.global_target_bpm}bpm"
+        return f"{stem}_{self.global_target_bpm}_bpm"
 
     @staticmethod
     def _run_ffmpeg(input_path: Path, output_path: Path, multiplier: float) -> None:
