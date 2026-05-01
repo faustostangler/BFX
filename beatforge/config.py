@@ -17,3 +17,6 @@ BPM_TARGET_OFFSET = BPM_INTERVAL_SIZE * 3/4  # = 15
 BPM_EXTREMES_MULTIPLIER = 2
 
 MAX_TRACKS_PER_PLAYLIST = 25  # 25 ou o valor desejado
+
+# BPM global target for retargeting (all tracks get a copy at this BPM)
+GLOBAL_TARGET_BPM = int(os.getenv("GLOBAL_TARGET_BPM", "160"))

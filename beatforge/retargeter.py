@@ -1,0 +1,83 @@
+# beatforge/retargeter.py
+
+import subprocess
+from pathlib import Path
+from typing import Optional, Tuple
+
+from beatforge.sampler import Sampler
+
+
+class Retargeter:
+    """Re-encodes an MP3 to a global target BPM via ffmpeg atempo.
+
+    Distinct from Converter (WAV→MP3 at bucket BPM):
+    this service operates on *already-encoded* MP3s,
+    producing a tempo-shifted copy at a single global BPM.
+    """
+
+    def __init__(self, global_target_bpm: int, sampler: Sampler) -> None:
+        self.global_target_bpm = global_target_bpm
+        self.sampler = sampler
+
+    def retarget(self, mp3_path: Path, source_bpm: int) -> Optional[Path]:
+        """Produce a tempo-shifted MP3 + sample at the global target BPM.
+
+        Args:
+            mp3_path: Absolute path to the source MP3.
+            source_bpm: The BPM the source was encoded at (bucket target).
+
+        Returns:
+            Path to the retargeted MP3, or None if already at target.
+        """
+        if source_bpm == self.global_target_bpm:
+            return None
+
+        out_dir = mp3_path.parent / f"_to{self.global_target_bpm}"
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        out_name = self._build_output_name(mp3_path.stem, source_bpm)
+        out_mp3 = out_dir / f"{out_name}.mp3"
+
+        # Idempotent: skip if already retargeted
+        if out_mp3.exists():
+            return out_mp3
+
+        multiplier = round(self.global_target_bpm / source_bpm, 4)
+        self._run_ffmpeg(mp3_path, out_mp3, multiplier)
+
+        # Generate sample from the retargeted MP3
+        self.sampler.create_sample(out_mp3)
+
+        return out_mp3
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _build_output_name(self, stem: str, source_bpm: int) -> str:
+        """Replace the source BPM suffix with the global target BPM.
+
+        'Queen - Champions_100bpm' → 'Queen - Champions_160bpm'
+        """
+        suffix = f"_{source_bpm}bpm"
+        if stem.endswith(suffix):
+            return stem[: -len(suffix)] + f"_{self.global_target_bpm}bpm"
+        # Fallback: append target BPM
+        return f"{stem}_{self.global_target_bpm}bpm"
+
+    @staticmethod
+    def _run_ffmpeg(input_path: Path, output_path: Path, multiplier: float) -> None:
+        """Execute ffmpeg atempo filter for tempo shifting."""
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", str(input_path),
+            "-filter:a", f"atempo={multiplier}",
+            "-vn",
+            "-q:a", "2",
+            str(output_path),
+        ]
+        subprocess.run(
+            cmd, check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )

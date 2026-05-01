@@ -1,6 +1,7 @@
 # beatforge/bfx.py
 
 import os
+from pathlib import Path
 # Silenciar logs do TensorFlow e Essentia antes de importar o resto
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 try:
@@ -17,6 +18,7 @@ from beatforge.playlist import PlaylistManager
 from beatforge.downloader import Downloader
 from beatforge.bpm import BPMAnalyzer
 from beatforge.converter import Converter
+from beatforge.retargeter import Retargeter
 from beatforge.sampler import Sampler
 from beatforge.track import TrackDTO
 from beatforge.utils import print_progress
@@ -45,13 +47,15 @@ class BeatForgeRunner:
         downloader: Downloader,
         analyzer: BPMAnalyzer,
         converter: Converter,
-        sampler: Sampler
+        sampler: Sampler,
+        retargeter: Retargeter,
     ) -> None:
         self.playlist_mgr = playlist_mgr
         self.downloader   = downloader
         self.analyzer     = analyzer
         self.converter    = converter
         self.sampler      = sampler
+        self.retargeter   = retargeter
         self.feature_extractor = EssentiaFeatureExtractor()
 
     @staticmethod
@@ -259,6 +263,13 @@ class BeatForgeRunner:
                 if track.mp3_path:
                     self.sampler.create_sample(track.mp3_path)
 
+                # Retarget to global BPM (e.g. 160) if not already there
+                if track.mp3_path and track.target_bpm:
+                    self.retargeter.retarget(
+                        mp3_path=Path(track.mp3_path),
+                        source_bpm=track.target_bpm,
+                    )
+
                 results.append(track)
 
                 # Extrai apenas o ID do vídeo para o log
@@ -288,12 +299,14 @@ if __name__ == "__main__":
         # Pasta temporária para os downloads de áudio bruto (.wav)
         temp_dl_dir = os.path.join(config.OUTPUT_DIR, "_downloads")
 
+        sampler = Sampler()
         runner = BeatForgeRunner(
             playlist_mgr=PlaylistManager(),
             downloader=Downloader(temp_dl_dir),
             analyzer=BPMAnalyzer(),
             converter=Converter(config.OUTPUT_DIR),
-            sampler=Sampler()
+            sampler=sampler,
+            retargeter=Retargeter(config.GLOBAL_TARGET_BPM, sampler),
         )
 
         results = runner.run(urls, genre=genre, process_all_entries=False, max_tracks_per_playlist=config.MAX_TRACKS_PER_PLAYLIST, processed=processed)
