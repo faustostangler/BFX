@@ -20,6 +20,7 @@ from beatforge.bpm import BPMAnalyzer
 from beatforge.converter import Converter
 from beatforge.retargeter import Retargeter
 from beatforge.sampler import Sampler
+from beatforge.normalizer import Normalizer
 from beatforge.track import TrackDTO
 from beatforge.utils import print_progress
 from beatforge.essentia_features import EssentiaFeatureExtractor
@@ -49,6 +50,7 @@ class BeatForgeRunner:
         converter: Converter,
         sampler: Sampler,
         retargeter: Retargeter,
+        normalizer: Normalizer,
     ) -> None:
         self.playlist_mgr = playlist_mgr
         self.downloader   = downloader
@@ -56,6 +58,7 @@ class BeatForgeRunner:
         self.converter    = converter
         self.sampler      = sampler
         self.retargeter   = retargeter
+        self.normalizer   = normalizer
         self.feature_extractor = EssentiaFeatureExtractor()
 
     @staticmethod
@@ -246,10 +249,17 @@ class BeatForgeRunner:
                 track.chroma_chroma_mean = features.get('chroma', {}).get('chroma_mean')
                 track.chroma_chroma_std = features.get('chroma', {}).get('chroma_std')
                 track.dynamics_energy_avg = features.get('dynamics', {}).get('energy_avg')
+                # intensidade bruta dos transientes. Como o cálculo de energia eleva as amplitudes ao quadrado, ele "exagera" matematicamente os picos curtos e fortes. O que significa na prática: Uma música com energy_avg altíssimo é uma música com batidas muito agressivas, tambores (bumbo, caixa) que "estouram" o sinal, mesmo que o resto da música seja baixo. É a "força bruta" dos picos do áudio.
                 track.dynamics_rms_avg = features.get('dynamics', {}).get('rms_avg')
+                # O RMS mede a potência contínua, o "corpo" do som. Se o RMS for muito alto (e próximo do limite máximo do áudio), significa que a música tem pouca dinâmica — ela é muito comprimida. É aquele som denso, contínuo, de um tijolo sonoro, comum em EDM (Música Eletrônica) ou Pop moderno, onde não há momentos de silêncio ou respiro.
                 track.dynamics_loudness_avg = features.get('dynamics', {}).get('loudness_avg')
+                # o volume "real" para o cérebro humano. Se você tocar duas músicas com o dial do volume travado no 5, a música com maior loudness_avg é aquela que vai fazer você querer tapar os ouvidos ou pedir para baixar, porque ela concentra a energia nas frequências que a biologia humana escuta melhor (a região dos médios, onde fica a voz, guitarras, etc.).
                 track.dynamics_crest_factor = features.get('dynamics', {}).get('crest_factor')
                 track.deep_embeds_vggish = features.get('deep_embeds', {}).get('vggish', [])
+
+                # Relação Agressividade de Picos vs. Corpo: dynamics_energy_avg / dynamics_rms_avg: Relação Alta: A música tem picos brutais de volume, mas um "chão" sonoro (o corpo dos instrumentos) mais baixo e calmo. Isso indica alta dinâmica. Muito comum em Música Clássica, Jazz acústico, ou uma percussão muito seca e forte com silêncio em volta.
+                # Relação Eficiência Perceptiva: dynamics_loudness_avg / dynamics_rms_avg: (Eficiência Perceptiva): Esta é a relação entre o que o seu ouvido percebe (Loudness) e o que o alto-falante está fisicamente gastando de energia elétrica (RMS). Relação baixa:: excesso de graves e sub-graves (muita energia e pouco barulho). Relação Alta: A música é extremamente eficiente para os ouvidos humanos. Ela soa muito alta para você, mesmo sem gastar tanta potência bruta do equipamento. Isso indica uma mixagem muito focada nas frequências médias/médio-agudas (2kHz a 5kHz - vozes bem na cara, guitarras brilhantes, metais). 
+                # Relação Presença vs. Transientes: dynamics_loudness_avg / dynamics_energy_avg: Compara a presença humana (Loudness) contra a "violência" matemática dos picos (Energia). Relação Alta: A música é densa, clara e presente aos ouvidos, mas sem batidas pontiagudas ou agressivas. Pode indicar uma música ambiente de alta qualidade, um coral, sons de cordas contínuos (violinos), ou um pop muito suave e constante, onde a voz é o que mais brilha e a percussão é macia.
 
                 bpm_librosa = self.analyzer.extract(wav_path)
                 track.bpm_librosa = bpm_librosa
@@ -259,11 +269,13 @@ class BeatForgeRunner:
 
                 self.converter.convert(track)
                 
-                # Gera o sample de 15s (30-45s)
                 if track.mp3_path:
+                    # Normalize in-place
+                    self.normalizer.normalize(Path(track.mp3_path))
+                    # Gera o sample de 15s (30-45s) do áudio normalizado
                     self.sampler.create_sample(track.mp3_path)
 
-                # Retarget to global BPM (e.g. 160) if not already there
+                # Retarget to global BPM (e.g. 160) se necessário
                 if track.mp3_path and track.target_bpm:
                     self.retargeter.retarget(
                         mp3_path=Path(track.mp3_path),
@@ -275,7 +287,7 @@ class BeatForgeRunner:
 
                 # Extrai apenas o ID do vídeo para o log
                 vid_id = track.url.split('v=')[-1].split('&')[0] if 'v=' in track.url else track.url[-11:]
-                extra_info=[f"{track.bpm_essentia:.2f}→{target_bpm}bpm V={track.view_count:.2f} ER={track.engagement_rate:.2f} https://youtu.be/{vid_id[:11]} {track.safe_title}"]
+                extra_info=[f"{track.bpm_essentia:.2f}→{target_bpm}bpm V={track.view_count:.2f} ER={track.engagement_rate:.2f} https://youtu.be/{vid_id[:11]}"]
                 print_progress(i, len(unique_tracks), start_time, extra_info)
 
             except Exception as e:
@@ -301,13 +313,19 @@ if __name__ == "__main__":
         temp_dl_dir = os.path.join(config.OUTPUT_DIR, "_downloads")
 
         sampler = Sampler()
+        normalizer = Normalizer(
+            target_lufs=config.LOUDNORM_TARGET_LUFS,
+            true_peak=config.LOUDNORM_TRUE_PEAK,
+            lra=config.LOUDNORM_LRA
+        )
         runner = BeatForgeRunner(
             playlist_mgr=PlaylistManager(),
             downloader=Downloader(temp_dl_dir),
             analyzer=BPMAnalyzer(),
             converter=Converter(config.OUTPUT_DIR),
             sampler=sampler,
-            retargeter=Retargeter(Path(config.OUTPUT_DIR), config.GLOBAL_TARGET_BPM, sampler),
+            retargeter=Retargeter(Path(config.OUTPUT_DIR), config.GLOBAL_TARGET_BPM, sampler, normalizer),
+            normalizer=normalizer,
         )
 
         results = runner.run(urls, genre=genre, process_all_entries=False, max_tracks_per_playlist=config.MAX_TRACKS_PER_PLAYLIST, processed=processed)

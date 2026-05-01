@@ -20,3 +20,8 @@ MAX_TRACKS_PER_PLAYLIST = 25  # 25 ou o valor desejado
 
 # BPM global target for retargeting (all tracks get a copy at this BPM)
 GLOBAL_TARGET_BPM = int(os.getenv("GLOBAL_TARGET_BPM", "160"))
+
+# EBU R128 Loudness Normalization
+LOUDNORM_TARGET_LUFS = float(os.getenv("LOUDNORM_TARGET_LUFS", "-14.0"))
+LOUDNORM_TRUE_PEAK = float(os.getenv("LOUDNORM_TRUE_PEAK", "-1.0"))
+LOUDNORM_LRA = float(os.getenv("LOUDNORM_LRA", "11.0"))

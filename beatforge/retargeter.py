@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from beatforge.sampler import Sampler
+from beatforge.normalizer import Normalizer
 
 
 class Retargeter:
@@ -15,10 +16,11 @@ class Retargeter:
     producing a tempo-shifted copy at a single global BPM.
     """
 
-    def __init__(self, base_dir: Path, global_target_bpm: int, sampler: Sampler) -> None:
+    def __init__(self, base_dir: Path, global_target_bpm: int, sampler: Sampler, normalizer: Normalizer) -> None:
         self.base_dir = base_dir
         self.global_target_bpm = global_target_bpm
         self.sampler = sampler
+        self.normalizer = normalizer
 
     def retarget(self, mp3_path: Path, source_bpm: int, genre: str = "Unknown") -> Optional[Path]:
         """Produce a tempo-shifted MP3 + sample at the global target BPM.
@@ -47,6 +49,9 @@ class Retargeter:
 
         multiplier = round(self.global_target_bpm / source_bpm, 4)
         self._run_ffmpeg(mp3_path, out_mp3, multiplier)
+
+        # Normalize the retargeted MP3
+        self.normalizer.normalize(out_mp3)
 
         # Generate sample from the retargeted MP3
         self.sampler.create_sample(out_mp3)
