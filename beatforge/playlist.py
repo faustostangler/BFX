@@ -200,13 +200,16 @@ class PlaylistManager:
                     age_weight=age_weight, 
                 )
 
+                # Extrai o ID do worker e converte para 1-based se for dígito (ex: 0 -> W1)
                 thread_name = threading.current_thread().name
-                worker_id = thread_name.split('_')[-1] if '_' in thread_name else thread_name
+                worker_id = thread_name.split('_')[-1].split('-')[-1]
+                if worker_id.isdigit():
+                    worker_id = str(int(worker_id) + 1)
                 vid_id = vid_url.split('v=')[-1].split('&')[0] if 'v=' in vid_url else vid_url[-11:]
-                extra_info = [f"[W{worker_id}] https://youtu.be/{vid_id[:11]} ER={er:.2f} SCORE={score_log:.2f} V={vc:.2f}"]
+                extra_info = [f"https://youtu.be/{vid_id[:11]} ER={er:.2f} SCORE={score_log:.2f} V={vc:.2f}"]
 
                 with print_lock:
-                    print_progress(completed_count, total_count, start_time, extra_info, indent_level=1)
+                    print_progress(completed_count, total_count, start_time, extra_info, indent_level=1, worker_id=worker_id)
                     completed_count += 1
 
                 results_array[idx] = dto

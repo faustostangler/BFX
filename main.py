@@ -187,7 +187,7 @@ class BeatForgeRunner:
 
         print('\n\nGetting Youtube Info')
         start_time = time.time()
-        print('\n\nGetting Youtube Info (Multithreaded Playlists)')
+        print('\n\nGetting Youtube Info')
         def fetch_playlist_urls(idx: int, playlist_url: str):
             tracks = self.playlist_mgr.get_links(playlist_url, idx, max_tracks_per_playlist, list(processed))
             if not tracks:
@@ -225,7 +225,7 @@ class BeatForgeRunner:
         results: List[TrackDTO] = []
         self.save_tracks(unique_tracks)
 
-        print('\n\nDownloading Youtube Songs (Multithreaded)')
+        print('\n\nDownloading Youtube Songs')
         start_time = time.time()
         
         print_lock = threading.Lock()
@@ -295,15 +295,17 @@ class BeatForgeRunner:
 
                 results.append(track)
 
-                # Extrai o nome da thread (ex: ThreadPoolExecutor-0_1 -> W1)
+                # Extrai o ID do worker e converte para 1-based se for dígito (ex: 0 -> W1)
                 thread_name = threading.current_thread().name
-                worker_id = thread_name.split('_')[-1] if '_' in thread_name else thread_name
+                worker_id = thread_name.split('_')[-1].split('-')[-1]
+                if worker_id.isdigit():
+                    worker_id = str(int(worker_id) + 1)
                 
                 # Extrai apenas o ID do vídeo para o log
                 vid_id = track.url.split('v=')[-1].split('&')[0] if 'v=' in track.url else track.url[-11:]
-                extra_info=[f"[W{worker_id}] {track.bpm_essentia:.2f}→{target_bpm}bpm V={track.view_count:.2f} ER={track.engagement_rate:.2f} https://youtu.be/{vid_id[:11]}"]
+                extra_info=[f"{track.bpm_essentia:.2f}→{target_bpm}bpm V={track.view_count:.2f} ER={track.engagement_rate:.2f} https://youtu.be/{vid_id[:11]}"]
                 with print_lock:
-                    print_progress(completed_count, total_count, start_time, extra_info)
+                    print_progress(completed_count, total_count, start_time, extra_info, worker_id=worker_id)
                     completed_count += 1
 
             except Exception as e:

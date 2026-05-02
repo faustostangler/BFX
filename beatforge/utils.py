@@ -2,7 +2,7 @@
 
 import time
 
-def print_progress(index=0, size=1, start_time=None, extra_info=None, indent_level=0, indent_unit="  "):
+def print_progress(index=0, size=1, start_time=None, extra_info=None, indent_level=0, indent_unit="  ", worker_id=None):
     """
     Exibe progresso, tempo decorrido, restante e total estimado.
     Pode ser chamado em qualquer loop com início conhecido.
@@ -14,6 +14,7 @@ def print_progress(index=0, size=1, start_time=None, extra_info=None, indent_lev
         extra_info (list): lista de strings adicionais a exibir.
         indent_level (int): profundidade de indentação.
         indent_unit (str): caractere(s) para indentação (padrão: 2 espaços).
+        worker_id (str): ID do worker (opcional).
     """
     if start_time is None:
         start_time = time.time()
@@ -36,8 +37,9 @@ def print_progress(index=0, size=1, start_time=None, extra_info=None, indent_lev
             m, s = divmod(r, 60)
             return f"{h}h{m:02}m{s:02}s"
 
+        worker_str = f"W{worker_id} " if worker_id else ""
         progress = (
-            f"{pct:.2%} ({completed}/{size}), {avg:.4f}s/item, "
+            f"{pct:.2%} ({worker_str}{completed}/{size}), {avg:.4f}s/item, "
             f"{fmt(elapsed)}+{fmt(remain)}={fmt(total)}"
         )
         indent = indent_unit * (indent_level + 1)
