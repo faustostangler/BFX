@@ -5,6 +5,7 @@ import time
 from glob import glob
 from pathlib import Path
 import yt_dlp
+from beatforge import config
 
 
 class Downloader:
@@ -65,6 +66,10 @@ class Downloader:
                 'preferredquality': '192',
             }],
         }
+
+        # Inject cookies for YouTube bot-detection bypass
+        if config.COOKIES_PATH:
+            ydl_opts['cookiefile'] = config.COOKIES_PATH
 
         # Baixa e converte com yt-dlp
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

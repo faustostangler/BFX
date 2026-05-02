@@ -42,12 +42,16 @@ class PlaylistManager:
             'force_generic_extractor': False,
             'yes_playlist': True,
         }
+        if config.COOKIES_PATH:
+            self._ydl_opts_flat['cookiefile'] = config.COOKIES_PATH
         self._ydl_opts_full = {
             'quiet': True,
             'no_warnings': True,
             'logger': logger,
             'force_generic_extractor': False,
         }
+        if config.COOKIES_PATH:
+            self._ydl_opts_full['cookiefile'] = config.COOKIES_PATH
 
     def sanitize_url(self, input_url: str) -> str:
         parts = urlparse(input_url)

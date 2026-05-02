@@ -139,3 +139,7 @@ playlist 2.txt
 backend/utils-original
 backend/utils/Untitled-1.ipynb
 music/_downloads/
+
+# Sensitive credentials - NEVER commit
+cookies.txt
+cookies_*.txt

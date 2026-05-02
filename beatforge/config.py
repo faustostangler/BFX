@@ -29,3 +29,7 @@ LOUDNORM_LRA = float(os.getenv("LOUDNORM_LRA", "11.0"))
 # Multithreading limits
 MAX_WORKERS = 8
 
+# yt-dlp cookie authentication (bypass YouTube bot detection)
+_cookies_candidate = os.getenv("COOKIES_PATH", str(Path.cwd() / "cookies.txt"))
+COOKIES_PATH = _cookies_candidate if os.path.isfile(_cookies_candidate) else None
+

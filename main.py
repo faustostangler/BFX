@@ -223,6 +223,7 @@ class BeatForgeRunner:
 
         unique_tracks = list(all_tracks_by_url.values())
         results: List[TrackDTO] = []
+        failed_tracks: List[TrackDTO] = []  # Lista para repescagem
         self.save_tracks(unique_tracks)
 
         print('\n\nDownloading Youtube Songs')
@@ -232,7 +233,7 @@ class BeatForgeRunner:
         completed_count = 0
         total_count = len(unique_tracks)
 
-        def process_task(track: TrackDTO):
+        def process_task(track: TrackDTO, is_retry: bool = False):
             nonlocal completed_count
             try:
                 wav_path = self.downloader.download_to_wav(track.url, track.safe_title)
@@ -309,13 +310,33 @@ class BeatForgeRunner:
                     completed_count += 1
 
             except Exception as e:
-                print(f"✗ Erro em {track.safe_title}: {e}")
+                error_msg = str(e)
+                if "confirm you're not a bot" in error_msg.lower() and not is_retry:
+                    with print_lock:
+                        print(f"\n[RETRY QUEUE] {track.safe_title} adicionado para repescagem (Bot detected)")
+                    failed_tracks.append(track)
+                else:
+                    print(f"✗ Erro em {track.safe_title}: {e}")
+                
                 with print_lock:
                     completed_count += 1
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
             futures = [executor.submit(process_task, track) for track in unique_tracks]
             concurrent.futures.wait(futures)
+
+        # === REPESCAGEM (Retry Logic) ===
+        if failed_tracks:
+            print(f"\n\n=== REPESCAGEM: Tentando {len(failed_tracks)} faixas que falharam por detecção de bot ===")
+            # Na repescagem usamos max_workers=1 para evitar novos bloqueios por excesso de concorrência
+            completed_count = 0
+            total_count = len(failed_tracks)
+            start_time_retry = time.time()
+            
+            for track in failed_tracks:
+                process_task(track, is_retry=True)
+                # O process_task já incrementa o completed_count e imprime o progresso
+                # Mas como é sequencial, podemos imprimir algo extra se quiser.
 
         self.save_tracks(unique_tracks)
 
@@ -326,6 +347,12 @@ if __name__ == "__main__":
     playlists_by_genre = load_playlists()
     db_path = config.DATABASE_PATH
     processed = get_processed_urls(db_path)
+
+    # Startup diagnostics
+    if config.COOKIES_PATH:
+        print(f"🍪 YouTube cookies loaded from: {config.COOKIES_PATH}")
+    else:
+        print("⚠ No cookies.txt found — YouTube may block some downloads")
 
     # 2) Para cada gênero, cria pasta e dispara o processamento
     start_time = time.time()

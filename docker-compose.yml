@@ -7,9 +7,11 @@ services:
       - ./music:/app/music
       - ./data:/app/data
       - ./playlist.txt:/app/playlist.txt:ro
+      - ./cookies.txt:/app/cookies.txt:ro
     environment:
       - OUTPUT_DIR=/app/music
       - DATABASE_PATH=/app/data/playlist.db
+      - COOKIES_PATH=/app/cookies.txt
       - TF_CPP_MIN_LOG_LEVEL=3
     deploy:
       resources:
