@@ -343,6 +343,29 @@ class BeatForgeRunner:
         return results
 
 if __name__ == "__main__":
+    # 0) Análise inicial da playlist (Strategic Mastery: Fail-fast & Diagnostics)
+    playlist_file = f"{config.FILENAME}.txt"
+    if os.path.exists(playlist_file):
+        try:
+            with open(playlist_file, "r", encoding="utf-8") as f:
+                lines = [l.strip() for l in f if l.strip()]
+                genres = [l for l in lines if not l.lower().startswith("http")]
+                urls = [l for l in lines if l.lower().startswith("http")]
+            
+            # Estimativa: ~45s por playlist (média multithreaded)
+            est_seconds = len(urls) * 100
+            h, m = divmod(est_seconds // 60, 60)
+            eta_msg = f"{h}h{m:02}m" if h > 0 else f"{m}m"
+            
+            print("\n" + "="*50)
+            print("📊 BEATFORGE PRE-FLIGHT ANALYSIS")
+            print(f"  • Gêneros identificados: {len(genres)}")
+            print(f"  • Playlists totais:      {len(urls)}")
+            print(f"  • ETA Estimado:         ~{eta_msg} (baseado em {config.MAX_WORKERS} workers)")
+            print("="*50 + "\n")
+        except Exception as e:
+            print(f"⚠ Falha na telemetria inicial: {e}")
+
     # 1) Carrega o dict { gênero: [urls...] }
     playlists_by_genre = load_playlists()
     db_path = config.DATABASE_PATH
